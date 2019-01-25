@@ -8,6 +8,8 @@ The aim of superlifter is to provide a way of combining fetches delineated by ti
 
 As the underlying fetches are performed by Urania, knowledge of this library is required (it's very simple, though!).
 
+[![Clojars Project](https://img.shields.io/clojars/v/superlifter.svg)](https://clojars.org/superlifter)
+
 ## Usage
 
 Start a superlifter as follows:
@@ -71,6 +73,9 @@ We can rewrite this using superlifter:
 ```clj
 ;; todo
 ```
+
+## Build
+[![CircleCI](https://circleci.com/gh/oliyh/superlifter.svg?style=svg)](https://circleci.com/gh/oliyh/superlifter)
 
 ## License
 
