@@ -18,7 +18,7 @@ Start a superlifter as follows:
 (require '[superlifter.core :as s])
 (require '[urania.core :as u])
 
-(def context (s/start! {:trigger {:kind :callback}}))
+(def context (s/start! {}}))
 ```
 
 Other kinds of trigger include `queue-size` and `interval` (like DataLoader), detailed below.
@@ -35,23 +35,28 @@ When the fetch is triggered the promises will be delivered.
 Regardless of the trigger used, you can always manually trigger a fetch of whatever is currently in the queue using `(s/fetch! context)`.
 This returns a promise which is delivered when all the fetches in the queue are complete, containing the results of all the fetches.
 
-#### Callback trigger
-In the example above a callback trigger was used. The fetch will only happen when you call `(s/fetch! context)`.
+#### On demand
+In the example above no triggers were specified. Fetches will only happen when you call `(s/fetch! context)`.
 
 #### Queue size trigger
 You can specify that the queue is fetched when the queue reaches a certain size. You can configure this to e.g. 10 using the following options:
 ```clj
-{:trigger {:kind :queue-size
-           :threshold 10}}
+{:triggers {:max-ten {:kind :queue-size
+                      :threshold 10}}}
 ```
 
 During operation you can adjust the queue size for the next fetch. This is useful for solving 1+n queries because you can adjust it by n at the parent level to ensure it will not trigger before all n children are enqueued.
 
+```clj
+;; adds one to the current size, so the threshold is now 11
+(s/adjust-queue-trigger-threshold! s :max-ten 1)
+```
+
 #### Interval trigger
 You can specify that the queue is fetched every e.g. 100ms using the following options:
 ```clj
-{:trigger {:kind :interval
-           :interval 100}}
+{:triggers {:every-hundred-millis {:kind :interval
+                                  :interval 100}}}
 ```
 
 This will give batching by time in a similar fashion to DataLoader.
@@ -59,6 +64,17 @@ This will give batching by time in a similar fashion to DataLoader.
 #### Your own trigger
 You can register your own kind of trigger by participating the in `s/start-trigger!` multimethod, so you can listen for other kinds of events that might let you know when it's a good time to perform the fetch.
 See the interval trigger implementation for inspiration.
+
+#### Trigger combinations
+You can supply any number of triggers which will all run concurrently and the queue will be fetched when any one condition is met.
+
+```clj
+{:triggers {:max-ten              {:kind :queue-size
+                                   :threshold 10}
+            :every-hundred-millis {:kind :interval
+                                   :interval 100}}}
+```
+
 
 ## Lacinia example
 

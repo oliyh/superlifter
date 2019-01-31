@@ -21,7 +21,7 @@
 
 (deftest callback-trigger-test
   (testing "Callback trigger mode means fetch must be run manually"
-    (let [s (s/start! {:trigger {:kind :callback}})
+    (let [s (s/start! {})
           foo (fetchable :foo)
           bar (fetchable :bar)
           foo-promise (s/enqueue! s foo)
@@ -41,8 +41,8 @@
 
 (deftest interval-trigger-test
   (testing "Interval trigger mode means the fetch is run every n millis"
-    (let [s (s/start! {:trigger {:kind :interval
-                                 :interval 100}})
+    (let [s (s/start! {:triggers {:hundred-millis {:kind :interval
+                                                   :interval 100}}})
           foo (fetchable :foo)
           bar (fetchable :bar)
           foo-promise (s/enqueue! s foo)
@@ -61,8 +61,8 @@
 
 (deftest queue-size-trigger-test
   (testing "Queue size trigger mode means the fetch is run when queue size reaches n"
-    (let [s (s/start! {:trigger {:kind :queue-size
-                                 :threshold 2}})
+    (let [s (s/start! {:triggers {:max-two {:kind :queue-size
+                                            :threshold 2}}})
           foo (fetchable :foo)
           bar (fetchable :bar)
           foo-promise (s/enqueue! s foo)]
@@ -79,8 +79,8 @@
           (is (empty? @(:queue (s/stop! s))))))))
 
   (testing "The queue size can be increased during operation"
-    (let [s (s/start! {:trigger {:kind :queue-size
-                                 :threshold 2}})
+    (let [s (s/start! {:triggers {:max-two {:kind :queue-size
+                                            :threshold 2}}})
           foo (fetchable :foo)
           bar (fetchable :bar)
           quu (fetchable :quu)
@@ -90,8 +90,8 @@
       (is (not (fetched? foo bar)))
 
       (testing "can increase the queue size by 1 to be 3"
-        (s/adjust-queue-trigger-threshold! s 1)
-        (is (= 3 @(get-in s [:trigger :current-threshold])))
+        (s/adjust-queue-trigger-threshold! s :max-two 1)
+        (is (= 3 @(get-in s [:triggers :max-two :current-threshold])))
 
         (testing "so when the queue size reaches 2 the fetch is not triggered"
           (let [bar-promise (s/enqueue! s bar)]
@@ -109,10 +109,10 @@
 
                 (is (fetched? foo bar quu))
                 (is (empty? @(:queue (s/stop! s))))
-                (is (= 2 @(get-in s [:trigger :current-threshold])))))))))))
+                (is (= 2 @(get-in s [:triggers :max-two :current-threshold])))))))))))
 
 (deftest fetch-failure-test
-  (let [s (s/start! {:trigger {:kind :callback}})
+  (let [s (s/start! {})
         foo (reify u/DataSource
               (u/-identity [this] :foo)
               (u/-fetch [this _]
