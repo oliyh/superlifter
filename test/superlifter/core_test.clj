@@ -11,9 +11,9 @@
       (reify u/DataSource
         (u/-identity [this] v)
         (u/-fetch [this _]
-          (prom/promise (fn [resolve reject]
-                          (reset! fetched? true)
-                          (resolve v)))))
+          (prom/create (fn [resolve reject]
+                         (reset! fetched? true)
+                         (resolve v)))))
       {:fetched? fetched?})))
 
 (defn- fetched? [& fetchables]
@@ -27,8 +27,8 @@
           foo-promise (s/enqueue! s foo)
           bar-promise (s/enqueue! s bar)]
 
-      (is (not (realized? foo-promise)))
-      (is (not (realized? bar-promise)))
+      (is (not (prom/resolved? foo-promise)))
+      (is (not (prom/resolved? bar-promise)))
       (is (not (fetched? foo bar)))
 
       @(s/fetch! s)
@@ -48,8 +48,8 @@
           foo-promise (s/enqueue! s foo)
           bar-promise (s/enqueue! s bar)]
 
-      (is (not (realized? foo-promise)))
-      (is (not (realized? bar-promise)))
+      (is (not (prom/resolved? foo-promise)))
+      (is (not (prom/resolved? bar-promise)))
       (is (not (fetched? foo bar)))
 
       (testing "within the next 100ms the fetch should be triggered"
@@ -67,7 +67,7 @@
           bar (fetchable :bar)
           foo-promise (s/enqueue! s foo)]
 
-      (is (not (realized? foo-promise)))
+      (is (not (prom/resolved? foo-promise)))
       (is (not (fetched? foo bar)))
 
       (testing "when the queue size reaches 2 the fetch is triggered"
@@ -86,7 +86,7 @@
           quu (fetchable :quu)
           foo-promise (s/enqueue! s foo)]
 
-      (is (not (realized? foo-promise)))
+      (is (not (prom/resolved? foo-promise)))
       (is (not (fetched? foo bar)))
 
       (testing "can increase the queue size by 1 to be 3"
@@ -96,8 +96,8 @@
         (testing "so when the queue size reaches 2 the fetch is not triggered"
           (let [bar-promise (s/enqueue! s bar)]
 
-            (is (not (realized? foo-promise)))
-            (is (not (realized? bar-promise)))
+            (is (not (prom/resolved? foo-promise)))
+            (is (not (prom/resolved? bar-promise)))
             (is (not (fetched? foo bar)))
 
             (testing "but when the 3rd item is added the fetch is triggered"
@@ -116,9 +116,9 @@
         foo (reify u/DataSource
               (u/-identity [this] :foo)
               (u/-fetch [this _]
-                (prom/promise (fn [resolve reject]
-                                (reject (ex-info "I blew up!" {}))))))
+                (prom/create (fn [resolve reject]
+                               (reject (ex-info "I blew up!" {}))))))
         foo-promise (s/enqueue! s foo)]
 
     (is (thrown-with-msg? Exception #"I blew up!" @(s/fetch! s)))
-    (is (not (realized? foo-promise)))))
+    (is (not (prom/resolved? foo-promise)))))
