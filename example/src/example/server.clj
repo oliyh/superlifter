@@ -15,7 +15,6 @@
     (prom/create (fn [resolve reject]
                    (resolve v)))))
 
-
 (defn- resolve-pets [context args parent]
   (let [result (resolve/resolve-promise)
         superlifter (get-in context [:request :superlifter])]
