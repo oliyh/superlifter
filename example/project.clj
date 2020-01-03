@@ -13,6 +13,7 @@
                  [com.walmartlabs/lacinia-pedestal "0.13.0-alpha-1"]
                  [superlifter "0.1.0-SNAPSHOT"]]
   :min-lein-version "2.0.0"
+  :source-paths ["src" "../src"]
   :resource-paths ["config", "resources"]
   ;; If you use HTTP/2 or ALPN, use the java-agent to pull in the correct alpn-boot dependency
   ;:java-agents [[org.mortbay.jetty.alpn/jetty-alpn-agent "2.0.5"]]
