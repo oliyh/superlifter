@@ -5,4 +5,5 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.10.0"]
                  [oliyh/urania "0.1.3"]
-                 [funcool/promesa "4.0.2"]])
+                 [funcool/promesa "4.0.2"]
+                 [org.clojure/tools.logging "0.6.0"]])

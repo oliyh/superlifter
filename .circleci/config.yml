@@ -40,3 +40,22 @@ jobs:
 
       # run tests!
       - run: lein test
+
+      # run example
+      - run: lein install
+
+      - restore_cache:
+          keys:
+          - v1-example-dependencies-{{ checksum "example/project.clj" }}
+          # fallback to using the latest cache if no exact match is found
+          - v1-example-dependencies-
+
+      - run: cd example && lein deps
+
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: v1-example-dependencies-{{ checksum "example/project.clj" }}
+
+      # run tests!
+      # - run: cd example && lein test

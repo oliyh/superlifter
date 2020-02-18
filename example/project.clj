@@ -1,5 +1,5 @@
 (defproject example "0.0.1-SNAPSHOT"
-  :description "FIXME: write description"
+  :description "An example use of superlifter for lacinia"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
@@ -11,6 +11,7 @@
                  [org.slf4j/jcl-over-slf4j "1.7.26"]
                  [org.slf4j/log4j-over-slf4j "1.7.26"]
                  [com.walmartlabs/lacinia-pedestal "0.13.0-alpha-1"]
+                 [funcool/promesa "4.0.2"]
                  [superlifter "0.1.0-SNAPSHOT"]]
   :min-lein-version "2.0.0"
   :source-paths ["src" "../src"]
@@ -18,6 +19,7 @@
   ;; If you use HTTP/2 or ALPN, use the java-agent to pull in the correct alpn-boot dependency
   ;:java-agents [[org.mortbay.jetty.alpn/jetty-alpn-agent "2.0.5"]]
   :profiles {:dev {:aliases {"run-dev" ["trampoline" "run" "-m" "example.server/run-dev"]}
-                   :dependencies [[io.pedestal/pedestal.service-tools "0.5.7"]]}
+                   :dependencies [[io.pedestal/pedestal.service-tools "0.5.7"]
+                                  [clj-http "3.10.0"]]}
              :uberjar {:aot [example.server]}}
   :main ^{:skip-aot true} example.server)

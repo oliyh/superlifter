@@ -13,5 +13,6 @@
              (update-in ctx [:request :superlifter] s/stop!))}))
 
 (defn ->lacinia-promise [sl-result]
-  (let [l-result (resolve/resolve-promise)]
-    (prom/then sl-result #(resolve/deliver! l-result %))))
+  (let [l-prom (resolve/resolve-promise)]
+    (prom/then sl-result #(resolve/deliver! l-prom %))
+    l-prom))
