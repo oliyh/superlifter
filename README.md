@@ -1,8 +1,16 @@
 # superlifter
 
-[Urania](https://github.com/funcool/urania) is a remote data access library for Clojure/script. It provides batching of similar requests and deduplication via caching.
+Superlifter is an implementation of [DataLoader](https://github.com/graphql/dataloader) for Clojure.
 
-What's missing? Smooth integration with libraries like [lacinia](https://github.com/walmartlabs/lacinia), where GraphQL resolvers are run independantly and must return data (or promises of data), leading to 1+n problems which can only be resolved by prefetching which complicates code.
+To quote from the DataLoader readme:
+
+> DataLoader allows you to decouple unrelated parts of your application without sacrificing the performance of batch data-loading. While the loader presents an API that loads individual values, all concurrent requests will be coalesced and presented to your batch loading function. This allows your application to safely distribute data fetching requirements throughout your application and maintain minimal outgoing data requests.
+
+Superlifter uses [Urania](https://github.com/funcool/urania), a remote data access library for Clojure/script inspired by [Haxl](https://github.com/facebook/Haxl)
+which in turn inspired DataLoader. Urania allows batching of similar fetches and deduplication via caching of identical fetches.
+
+Superlifter adds smooth integration with libraries like [lacinia](https://github.com/walmartlabs/lacinia), where GraphQL resolvers are run independently
+and must return data (or promises of data), leading to 1+n problems which can otherwise only be resolved by prefetching which complicates code.
 
 The aim of superlifter is to provide a way of combining fetches delineated by time buckets, thresholds or explicit trigger rather than by node resolution.
 
@@ -12,13 +20,17 @@ Superlifter provides the following features:
 
 - Fast, simple implementation of DataLoader pattern
 - Bucketing by time or by queue size
-- Supports asynchronous fetching
-- Exposes protocol to combine multiple fetches into a single fetch
+- Asynchronous fetching
+- Batching of fetches
 - Shared cache for all fetches in a session
   - Guarantees consistent results
   - Avoids duplicating work
+- Access to the cache allows longer-term persistence
 
 [![Clojars Project](https://img.shields.io/clojars/v/superlifter.svg)](https://clojars.org/superlifter)
+
+- [Vanilla usage](#vanilla-usage)
+- [Lacinia usage](#lacinia-usage)
 
 ## Vanilla usage
 
@@ -156,6 +168,25 @@ We can rewrite this using superlifter (see the [example code](https://github.com
 (defn- resolve-pet-details [context args {:keys [id]}]
   (-> (sl/enqueue! (get-in context [:request :superlifter]) :pet-details (->FetchPet id))
       (->lacinia-promise)))
+```
+
+It's usual to start a Superlifter before each query and stop it afterwards.
+There is an `inject-superlifter` interceptor which will help you do this:
+
+```clj
+(require '[superlifter.lacinia :refer [inject-superlifter])
+
+(def lacinia-opts {:graphiql true})
+
+(def superlifter-args
+  {:buckets {:default {:triggers {:queue-size {:threshold 1}}}}
+   :urania-opts {:env {:db @pet-db}}})
+
+(def service (lacinia/service-map
+              (fn [] (compile-schema))
+              (assoc lacinia-opts
+                     :interceptors (into [(inject-superlifter superlifter-args)]
+                                         (lacinia/default-interceptors (fn [] (compile-schema)) lacinia-opts)))))
 ```
 
 ## Build
