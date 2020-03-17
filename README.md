@@ -122,7 +122,8 @@ Where the resolvers are as follows:
 We can rewrite this using superlifter (see the [example code](https://github.com/oliyh/superlifter/tree/master/example) for full context):
 
 ```clj
-(require '[superlifter.core :as s])
+(require '[superlifter.lacinia :refer [with-superlifter]])
+(require '[superlifter.helpers :as sl])
 (require '[urania.core :as u])
 (require '[promesa.core :as prom])
 
@@ -156,18 +157,17 @@ We can rewrite this using superlifter (see the [example code](https://github.com
 ;; resolvers
 
 (defn- resolve-pets [context args parent]
-  (let [superlifter (get-in context [:request :superlifter])]
-    (-> (sl/enqueue! superlifter (->FetchPets))
-        (sl/then-add-bucket! superlifter
-                             :pet-details
-                             (fn [pet-ids]
-                               {:triggers {:queue-size {:threshold (count pet-ids)}
-                                           :interval {:interval 50}}}))
-        ->lacinia-promise)))
+  (with-superlifter context
+    (-> (sl/enqueue! (->FetchPets))
+        (sl/add-bucket! :pet-details
+                        (fn [pet-ids]
+                          {:triggers {:queue-size {:threshold (count pet-ids)}
+                                      :interval {:interval 50}}})))))
 
 (defn- resolve-pet-details [context args {:keys [id]}]
-  (-> (sl/enqueue! (get-in context [:request :superlifter]) :pet-details (->FetchPet id))
-      (->lacinia-promise)))
+  (with-superlifter context
+    (sl/enqueue! :pet-details (->FetchPet id))))
+
 ```
 
 It's usual to start a Superlifter before each query and stop it afterwards.

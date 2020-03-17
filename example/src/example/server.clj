@@ -1,11 +1,9 @@
 (ns example.server
   (:require [io.pedestal.http :as server]
-            [io.pedestal.interceptor :refer [interceptor]]
             [com.walmartlabs.lacinia.pedestal :as lacinia]
-            [com.walmartlabs.lacinia.resolve :as resolve]
             [com.walmartlabs.lacinia.schema :as schema]
-            [superlifter.core :as sl]
-            [superlifter.lacinia :refer [inject-superlifter ->lacinia-promise]]
+            [superlifter.lacinia :refer [inject-superlifter with-superlifter]]
+            [superlifter.helpers :as sl]
             [urania.core :as u]
             [promesa.core :as prom]
             [clojure.tools.logging :as log]))
@@ -43,18 +41,16 @@
               (map (:db env) pet-ids)))))
 
 (defn- resolve-pets [context args parent]
-  (let [superlifter (get-in context [:request :superlifter])]
-    (-> (sl/enqueue! superlifter (->FetchPets))
-        (sl/then-add-bucket! superlifter
-                             :pet-details
-                             (fn [pet-ids]
-                               {:triggers {:queue-size {:threshold (count pet-ids)}
-                                           :interval {:interval 50}}}))
-        ->lacinia-promise)))
+  (with-superlifter context
+    (-> (sl/enqueue! (->FetchPets))
+        (sl/add-bucket! :pet-details
+                        (fn [pet-ids]
+                          {:triggers {:queue-size {:threshold (count pet-ids)}
+                                      :interval {:interval 50}}})))))
 
 (defn- resolve-pet-details [context args {:keys [id]}]
-  (-> (sl/enqueue! (get-in context [:request :superlifter]) :pet-details (->FetchPet id))
-      (->lacinia-promise)))
+  (with-superlifter context
+    (sl/enqueue! :pet-details (->FetchPet id))))
 
 (defn compile-schema []
   (schema/compile

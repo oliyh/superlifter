@@ -27,6 +27,7 @@
    The muses in the queue will all be fetched together when the trigger condition is met."
   ([context muse] (enqueue! context default-bucket-id muse))
   ([context bucket-id muse]
+   (println "context is" context)
    (let [bucket (bucket-for context bucket-id)
          p (prom/deferred)]
      (swap! (:queue bucket)
@@ -40,17 +41,18 @@
   (log/debug "Fetching bucket" bucket)
   (let [[muses] (reset-vals! (:queue bucket) [])
         cache (get-in bucket [:urania-opts :cache])]
-    (when (pos? (count muses))
-      (log/debug "Fetching" (count muses) "muses")
-      (-> (u/execute! (u/collect muses)
-                      (merge (:urania-opts bucket)
-                             (when cache
-                               {:cache (->urania cache)})))
-          (prom/then
-           (fn [[result new-cache-value :as r]]
-             (when cache
-               (urania-> cache new-cache-value))
-             result))))))
+    (if (pos? (count muses))
+      (do (log/debug "Fetching" (count muses) "muses")
+          (-> (u/execute! (u/collect muses)
+                          (merge (:urania-opts bucket)
+                                 (when cache
+                                   {:cache (->urania cache)})))
+              (prom/then
+               (fn [[result new-cache-value :as r]]
+                 (when cache
+                   (urania-> cache new-cache-value))
+                 result))))
+      (prom/resolved nil))))
 
 (defn fetch!
   "Performs a fetch of all muses in the queue"
@@ -60,8 +62,9 @@
      (fetch-bucket! bucket))))
 
 (defn fetch-all! [context]
-  (doseq [bucket (vals @(:buckets context))]
-    (fetch-bucket! bucket)))
+  (prom/then (prom/all (map fetch-bucket! (vals @(:buckets context))))
+             (fn [results]
+               (reduce into [] results))))
 
 (defmulti start-trigger! (fn [bucket kind opts] kind))
 
@@ -123,16 +126,10 @@
   context)
 
 (defn add-bucket! [context id opts]
+  (println "Adding bucket to context" context id)
   (swap! (:buckets context)
          #(assoc % id (start-bucket! context id opts)))
   context)
-
-(defn then-add-bucket! [p context id opts-fn]
-  (prom/then
-   p
-   (fn [result]
-     (add-bucket! context id (opts-fn result))
-     result)))
 
 (defn default-opts []
   {:urania-opts {:cache (atom {})}})

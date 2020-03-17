@@ -128,14 +128,14 @@
           foo-promise (s/enqueue! s foo)
           bar-promise (s/enqueue! s bar)]
 
-      (s/fetch-all! s)
+      (is (= [:foo :bar] (deref (s/fetch-all! s) 500 ::timed-out)))
 
       (is (= [:foo :bar] (map deref [foo-promise bar-promise])))
       (is (fetched? foo bar))
 
       (let [foo-2 (fetchable :foo)
             foo-2-promise (s/enqueue! s foo-2)]
-        (s/fetch-all! s)
+        (is (= [:foo] (deref (s/fetch-all! s) 500 ::timed-out)))
         (is (= :foo @foo-2-promise))
         (is (not (fetched? foo-2))))
 
