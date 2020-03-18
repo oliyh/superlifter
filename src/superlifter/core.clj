@@ -27,7 +27,6 @@
    The muses in the queue will all be fetched together when the trigger condition is met."
   ([context muse] (enqueue! context default-bucket-id muse))
   ([context bucket-id muse]
-   (println "context is" context)
    (let [bucket (bucket-for context bucket-id)
          p (prom/deferred)]
      (swap! (:queue bucket)
@@ -48,7 +47,7 @@
                                  (when cache
                                    {:cache (->urania cache)})))
               (prom/then
-               (fn [[result new-cache-value :as r]]
+               (fn [[result new-cache-value]]
                  (when cache
                    (urania-> cache new-cache-value))
                  result))))
@@ -66,7 +65,7 @@
              (fn [results]
                (reduce into [] results))))
 
-(defmulti start-trigger! (fn [bucket kind opts] kind))
+(defmulti start-trigger! (fn [_bucket kind _opts] kind))
 
 (defmethod start-trigger! :queue-size [bucket _ opts]
   (let [threshold (:threshold opts)
@@ -96,7 +95,7 @@
                           (recur)))]
     (assoc opts :stop-fn #(future-cancel watcher))))
 
-(defmethod start-trigger! :default [bucket _ opts]
+(defmethod start-trigger! :default [_bucket _ opts]
   opts)
 
 (defn- start-triggers! [{:keys [triggers] :as bucket}]
@@ -118,7 +117,7 @@
 
 (defn- start-buckets! [{:keys [buckets] :as context}]
   (swap! buckets
-         #(reduce-kv (fn [buckets id opts]
+         #(reduce-kv (fn [buckets id _opts]
                        (log/debug "Starting bucket" id)
                        (update buckets id (partial start-bucket! context id)))
                      %
@@ -126,7 +125,6 @@
   context)
 
 (defn add-bucket! [context id opts]
-  (println "Adding bucket to context" context id)
   (swap! (:buckets context)
          #(assoc % id (start-bucket! context id opts)))
   context)

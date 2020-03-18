@@ -3,9 +3,7 @@
             [com.walmartlabs.lacinia.pedestal :as lacinia]
             [com.walmartlabs.lacinia.schema :as schema]
             [superlifter.lacinia :refer [inject-superlifter with-superlifter]]
-            [superlifter.helpers :as sl]
-            [urania.core :as u]
-            [promesa.core :as prom]
+            [superlifter.api :as s]
             [clojure.tools.logging :as log]))
 
 (def pet-db (atom {"abc-123" {:name "Lyra"
@@ -15,53 +13,38 @@
                    "ghi-345" {:name "Iorek"
                               :age 41}}))
 
-(defrecord FetchPets []
-  u/DataSource
-  (-identity [this] :fetch-pets)
-  (-fetch [this env]
-    (prom/create (fn [resolve reject]
-                   (resolve (map (fn [id]
-                                   {:id id})
-                                 (keys (:db env))))))))
+;; def-fetcher - a convenience macro like defrecord for things which cannot be combined
+(s/def-fetcher FetchPets []
+  (fn [_this env]
+    (map (fn [id] {:id id}) (keys (:db env)))))
 
-(defrecord FetchPet [id]
-  u/DataSource
-  (-identity [this] id)
-  (-fetch [this env]
-    (log/info "Fetching pet details" id)
-    (prom/create (fn [resolve reject]
-                   (resolve (get (:db env) id)))))
+;; def-superfetcher - a convenience macro like defrecord for combinable things
+(s/def-superfetcher FetchPet [id]
+  (fn [many env]
+    (log/info "Combining request for" (count many) "pets")
+    (map (:db env) (map :id many))))
 
-  u/BatchedSource
-  (-fetch-multi [muse muses env]
-    (let [muses (cons muse muses)
-          pet-ids (map :id muses)]
-      (log/info "Combining request for ids" pet-ids)
-      (zipmap (map u/-identity muses)
-              (map (:db env) pet-ids)))))
-
-(defn- resolve-pets [context args parent]
+(defn- resolve-pets [context _args _parent]
   (with-superlifter context
-    (-> (sl/enqueue! (->FetchPets))
-        (sl/add-bucket! :pet-details
+    (-> (s/enqueue! (->FetchPets))
+        (s/add-bucket! :pet-details
                         (fn [pet-ids]
                           {:triggers {:queue-size {:threshold (count pet-ids)}
                                       :interval {:interval 50}}})))))
 
-(defn- resolve-pet-details [context args {:keys [id]}]
+(defn- resolve-pet-details [context _args {:keys [id]}]
   (with-superlifter context
-    (sl/enqueue! :pet-details (->FetchPet id))))
+    (s/enqueue! :pet-details (->FetchPet id))))
 
-(defn compile-schema []
-  (schema/compile
-   {:objects {:PetDetails {:fields {:name {:type 'String}
-                                    :age {:type 'Int}}}
-              :Pet {:fields {:id {:type 'String}
-                             :details {:type :PetDetails
-                                       :resolve resolve-pet-details}}}}
-    :queries {:pets
-              {:type '(list :Pet)
-               :resolve resolve-pets}}}))
+(def schema
+  {:objects {:PetDetails {:fields {:name {:type 'String}
+                                   :age {:type 'Int}}}
+             :Pet {:fields {:id {:type 'String}
+                            :details {:type :PetDetails
+                                      :resolve resolve-pet-details}}}}
+   :queries {:pets
+             {:type '(list :Pet)
+              :resolve resolve-pets}}})
 
 (def lacinia-opts {:graphiql true})
 
@@ -69,11 +52,12 @@
   {:buckets {:default {:triggers {:queue-size {:threshold 1}}}}
    :urania-opts {:env {:db @pet-db}}})
 
-(def service (lacinia/service-map
-              (fn [] (compile-schema))
-              (assoc lacinia-opts
-                     :interceptors (into [(inject-superlifter superlifter-args)]
-                                         (lacinia/default-interceptors (fn [] (compile-schema)) lacinia-opts)))))
+(def service
+  (lacinia/service-map
+   (fn [] (schema/compile schema))
+   (assoc lacinia-opts
+          :interceptors (into [(inject-superlifter superlifter-args)]
+                              (lacinia/default-interceptors (fn [] (schema/compile schema)) lacinia-opts)))))
 
 ;; This is an adapted service map, that can be started and stopped
 ;; From the REPL you can call server/start and server/stop on this service
@@ -81,7 +65,7 @@
 
 (defn -main
   "The entry-point for 'lein run'"
-  [& args]
+  [& _args]
   (log/info "\nCreating your server...")
   (server/start runnable-service))
 

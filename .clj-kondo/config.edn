@@ -1,0 +1,3 @@
+{:skip-comments true
+ :lint-as {superlifter.api/def-fetcher clojure.core/defrecord
+           superlifter.api/def-superfetcher clojure.core/defrecord}}

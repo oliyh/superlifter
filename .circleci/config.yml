@@ -58,4 +58,4 @@ jobs:
           key: v1-example-dependencies-{{ checksum "example/project.clj" }}
 
       # run tests!
-      # - run: cd example && lein test
+      - run: cd example && lein test
