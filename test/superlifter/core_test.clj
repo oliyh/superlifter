@@ -13,7 +13,7 @@
         (u/-identity [this] v)
         (u/-fetch [this _]
           (log/info "Fetching" v)
-          (prom/create (fn [resolve reject]
+          (prom/create (fn [resolve _reject]
                          (log/info "Delivering promise for " v)
                          (reset! fetched? true)
                          (resolve v)))))
@@ -146,7 +146,7 @@
         foo (reify u/DataSource
               (u/-identity [this] :foo)
               (u/-fetch [this _]
-                (prom/create (fn [resolve reject]
+                (prom/create (fn [_resolve reject]
                                (reject (ex-info "I blew up!" {}))))))
         foo-promise (s/enqueue! s foo)]
 

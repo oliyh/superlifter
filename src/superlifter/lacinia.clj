@@ -1,7 +1,6 @@
 (ns superlifter.lacinia
   (:require [superlifter.core :as s]
-            [superlifter.helpers :refer [*instance*]]
-            [promesa.core :as prom]
+            [superlifter.api :as api]
             [io.pedestal.interceptor :refer [interceptor]]
             [com.walmartlabs.lacinia.resolve :as resolve]))
 
@@ -15,9 +14,9 @@
 
 (defn ->lacinia-promise [sl-result]
   (let [l-prom (resolve/resolve-promise)]
-    (prom/then sl-result #(resolve/deliver! l-prom %))
+    (api/unwrap #(resolve/deliver! l-prom %) sl-result)
     l-prom))
 
-(defmacro with-superlifter [ctx & body]
-  `(binding [*instance* (get-in ~ctx [:request :superlifter])]
-     (->lacinia-promise ~@body)))
+(defmacro with-superlifter [ctx body]
+  `(api/with-superlifter (get-in ~ctx [:request :superlifter])
+     (->lacinia-promise ~body)))

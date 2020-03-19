@@ -2,7 +2,7 @@
   (:require [example.server :refer [service]]
             [io.pedestal.http :as server]
             [clj-http.client :as http]
-            [clojure.test :refer [deftest testing is use-fixtures]]))
+            [clojure.test :refer [deftest is use-fixtures]]))
 
 (defn- with-server [f]
   (let [server (-> service

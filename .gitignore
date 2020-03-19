@@ -11,3 +11,4 @@ pom.xml.asc
 .hg/
 /example/target
 /example/.nrepl-port
+/.clj-kondo/.cache
