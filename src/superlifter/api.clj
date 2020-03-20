@@ -9,6 +9,8 @@
     (f p)))
 
 (defmacro def-fetcher [sym bindings do-fetch-fn]
+  (when (seq bindings)
+    (assert (some #{'id} bindings) "Bindings must include an id"))
   `(defrecord ~sym ~bindings
      u/DataSource
      (-identity [this#] (:id this#))
@@ -16,6 +18,8 @@
        (~do-fetch-fn this# env#))))
 
 (defmacro def-superfetcher [sym bindings do-fetch-fn]
+  (when (seq bindings)
+    (assert (some #{'id} bindings) "Bindings must include an id"))
   `(defrecord ~sym ~bindings
      u/DataSource
      (-identity [this#] (:id this#))
