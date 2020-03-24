@@ -1,4 +1,4 @@
-(defproject superlifter "0.1.1-SNAPSHOT"
+(defproject superlifter "0.1.1"
   :description "A (sort of) DataLoader for Clojure/script"
   :url "https://github.com/oliyh/superlifter"
   :license {:name "Eclipse Public License"
