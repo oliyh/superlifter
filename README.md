@@ -186,7 +186,7 @@ There is an `inject-superlifter` interceptor which will help you do this:
 
 ## Development
 
-CLJS tests are available at http://localhost:9500/figwheel-extra-main/auto-testing
+`cider-jack-in-clj&cljs` and open the test page http://localhost:9500/figwheel-extra-main/auto-testing
 
 ## Build
 [![CircleCI](https://circleci.com/gh/oliyh/superlifter.svg?style=svg)](https://circleci.com/gh/oliyh/superlifter)

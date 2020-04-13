@@ -11,7 +11,8 @@
   (urania-> [this new-value]))
 
 (extend-protocol Cache
-  clojure.lang.Atom
+  #?(:clj clojure.lang.Atom
+     :cljs cljs.core/Atom)
   (->urania [this]
     (deref this))
   (urania-> [this new-value]
