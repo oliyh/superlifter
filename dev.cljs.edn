@@ -1,0 +1,9 @@
+^{:watch-dirs ["test" "src"]
+  :open-url false
+  :auto-testing true}
+{:main "superlifter.core"
+ :output-to "target/public/superlifter.js"
+ :preloads [devtools.preload]
+ :external-config {:devtools/config {:features-to-install    [:formatters :hints]
+                                     :fn-symbol              "F"
+                                     :print-config-overrides true}}}

@@ -12,7 +12,7 @@
                  [org.slf4j/log4j-over-slf4j "1.7.26"]
                  [com.walmartlabs/lacinia-pedestal "0.13.0-alpha-1"]
                  [funcool/promesa "4.0.2"]
-                 [superlifter "0.1.0-SNAPSHOT"]]
+                 [superlifter "0.1.2-SNAPSHOT"]]
   :min-lein-version "2.0.0"
   :source-paths ["src" "../src"]
   :resource-paths ["config", "resources"]
