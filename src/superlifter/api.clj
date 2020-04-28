@@ -3,17 +3,19 @@
             [promesa.core :as prom]
             [urania.core :as u]))
 
-(defn unwrap [f p]
-  (if (prom/promise? p)
-    (prom/then p f)
-    (f p)))
+(defn unwrap
+  ([p] (unwrap identity p))
+  ([f p]
+   (if (prom/promise? p)
+     (prom/then p f)
+     (prom/resolved (f p)))))
 
 (defmacro def-fetcher [sym bindings do-fetch-fn]
   `(defrecord ~sym ~bindings
      u/DataSource
      (-identity [this#] (:id this#))
      (-fetch [this# env#]
-       (~do-fetch-fn this# env#))))
+       (unwrap (~do-fetch-fn this# env#)))))
 
 (defmacro def-superfetcher [sym bindings do-fetch-fn]
   `(defrecord ~sym ~bindings
