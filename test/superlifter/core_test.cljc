@@ -1,6 +1,6 @@
 (ns superlifter.core-test
   (:require #?(:clj [clojure.test :refer [deftest testing is]]
-               :cljs [cljs.test :refer-macros [deftest testing is]])
+               :cljs [cljs.test :refer-macros [deftest testing is async]])
             [superlifter.core :as s]
             [urania.core :as u]
             [promesa.core :as prom]
@@ -10,7 +10,12 @@
 #?(:cljs (def Exception js/Error))
 #?(:cljs (enable-console-print!))
 
-(println "Hello world i am testing")
+#?(:clj
+   (defmacro async [done-sym & body]
+     `(let [finished# (promise)
+            ~done-sym (fn [] (deliver finished# true))]
+        ~@body
+        (is (deref finished# 5000 false) "test timed out"))))
 
 (defn- fetchable [v]
   (let [fetched? (atom false)]
@@ -31,24 +36,30 @@
   (every? true? (map (comp deref :fetched? meta) fetchables)))
 
 (deftest callback-trigger-test
-  (testing "Callback trigger mode means fetch must be run manually"
-    (let [s (s/start! {})
-          foo (fetchable :foo)
-          bar (fetchable :bar)
-          foo-promise (s/enqueue! s foo)
-          bar-promise (s/enqueue! s bar)]
+  (async
+   done
+   (testing "Callback trigger mode means fetch must be run manually"
+     (let [s (s/start! {})
+           foo (fetchable :foo)
+           bar (fetchable :bar)
+           foo-promise (s/enqueue! s foo)
+           bar-promise (s/enqueue! s bar)]
 
-      (is (not (prom/resolved? foo-promise)))
-      (is (not (prom/resolved? bar-promise)))
-      (is (not (fetched? foo bar)))
+       #?(:clj (do (is (not (prom/resolved? foo-promise)))
+                   (is (not (prom/resolved? bar-promise)))))
+       (is (not (fetched? foo bar)))
 
-      @(s/fetch! s)
+       (prom/then (prom/all [(s/fetch! s) foo-promise bar-promise])
+                  (fn [[v foo-v bar-v]]
 
-      (is (= :foo @foo-promise))
-      (is (= :bar @bar-promise))
+                    (is (= [:foo :bar] v))
+                    (is (= :foo foo-v))
+                    (is (= :bar bar-v))
 
-      (is (fetched? foo bar))
-      (is (empty? (-> (s/stop! s) :buckets deref :default :queue deref))))))
+                    (is (fetched? foo bar))
+                    (is (empty? (-> (s/stop! s) :buckets deref :default :queue deref)))
+
+                    (done)))))))
 
 #_(deftest interval-trigger-test
   (testing "Interval trigger mode means the fetch is run every n millis"
@@ -150,13 +161,21 @@
       (s/stop! s))))
 
 (deftest fetch-failure-test
-  (let [s (s/start! {})
-        foo (reify u/DataSource
-              (u/-identity [this] :foo)
-              (u/-fetch [this _]
-                (prom/create (fn [_resolve reject]
-                               (reject (ex-info "I blew up!" {}))))))
-        foo-promise (s/enqueue! s foo)]
+  (async
+   done
+   (let [s (s/start! {})
+         foo (reify u/DataSource
+               (u/-identity [this] :foo)
+               (u/-fetch [this _]
+                 (prom/create (fn [_resolve reject]
+                                (reject (ex-info "I blew up!" {}))))))
+         foo-promise (s/enqueue! s foo)]
 
-    (is (thrown-with-msg? Exception #"I blew up!" @(s/fetch! s)))
-    (is (not (prom/resolved? foo-promise)))))
+     (prom/catch (s/fetch! s)
+         (fn [v]
+           (is (instance? Exception v))
+           #?(:clj (do (is (not (prom/resolved? foo-promise)))
+                       ;; should this be true?
+                       ;; (is (prom/rejected? foo-promise))
+                       ))
+           (done))))))
