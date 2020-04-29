@@ -2,6 +2,7 @@
 (ns superlifter.test-runner
   (:require
    [superlifter.core-test]
+   [superlifter.api-test]
    [figwheel.main.testing :refer [run-tests-async]]))
 
 (defn -main [& args]

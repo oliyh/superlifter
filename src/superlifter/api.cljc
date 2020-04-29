@@ -10,34 +10,34 @@
      (prom/then p f)
      (prom/resolved (f p)))))
 
-(defmacro def-fetcher [sym bindings do-fetch-fn]
-  `(defrecord ~sym ~bindings
-     u/DataSource
-     (-identity [this#] (:id this#))
-     (-fetch [this# env#]
-       (unwrap (~do-fetch-fn this# env#)))))
+#?(:clj (defmacro def-fetcher [sym bindings do-fetch-fn]
+          `(defrecord ~sym ~bindings
+             u/DataSource
+             (-identity [this#] (:id this#))
+             (-fetch [this# env#]
+               (unwrap (~do-fetch-fn this# env#))))))
 
-(defmacro def-superfetcher [sym bindings do-fetch-fn]
-  `(defrecord ~sym ~bindings
-     u/DataSource
-     (-identity [this#] (:id this#))
-     (-fetch [this# env#]
-       (unwrap first (~do-fetch-fn [this#] env#)))
+#?(:clj (defmacro def-superfetcher [sym bindings do-fetch-fn]
+          `(defrecord ~sym ~bindings
+             u/DataSource
+             (-identity [this#] (:id this#))
+             (-fetch [this# env#]
+               (unwrap first (~do-fetch-fn [this#] env#)))
 
-     u/BatchedSource
-     (-fetch-multi [muse# muses# env#]
-       (let [muses# (cons muse# muses#)]
-         (unwrap (fn [responses#]
-                   (zipmap (map u/-identity muses#)
-                           responses#))
-                 (~do-fetch-fn muses# env#))))))
+             u/BatchedSource
+             (-fetch-multi [muse# muses# env#]
+               (let [muses# (cons muse# muses#)]
+                 (unwrap (fn [responses#]
+                           (zipmap (map u/-identity muses#)
+                                   responses#))
+                         (~do-fetch-fn muses# env#)))))))
 
 
 (def ^:dynamic *instance*)
 
-(defmacro with-superlifter [instance & body]
-  `(binding [*instance* ~instance]
-     ~@body))
+#?(:clj (defmacro with-superlifter [instance & body]
+          `(binding [*instance* ~instance]
+             ~@body)))
 
 (defn enqueue!
   "Enqueues a muse describing work to be done and returns a promise which will be delivered with the result of the work.
