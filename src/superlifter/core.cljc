@@ -6,6 +6,18 @@
 
 #?(:cljs (def Throwable js/Error))
 
+#?(:clj
+   (defmacro log [level & args]
+     (if (:ns &env)
+       `(~(condp = level
+            :debug 'js/console.debug
+            :info 'js/console.info)
+         ~@body)
+       `(~(condp = level
+            :debug 'log/debug
+            :info 'log/info)
+         ~@body))))
+
 (defprotocol Cache
   (->urania [this])
   (urania-> [this new-value]))
@@ -105,6 +117,21 @@
                                          (:interval opts)))]
     (assoc opts :stop-fn #?(:clj #(future-cancel watcher)
                             :cljs #(js/clearInterval watcher)))))
+
+(defmethod start-trigger! :debounced [bucket _ opts]
+  (let [threshold (:threshold opts)
+        watch-id ::queue-size]
+    (add-watch (:queue bucket)
+               watch-id
+               (fn [_ _ _ new-state]
+                 #?(:clj (log/debug "Watching queue size" threshold (count new-state) bucket)
+                    :cljs (js/console.debug "Watching queue size" threshold (count new-state) bucket))
+                 (when (>= (count new-state) threshold)
+                   #?(:clj (log/debug "Going to fetch" bucket)
+                      :cljs (js/console.debug "Going to fetch" bucket))
+                   #?(:clj (future (fetch-handling-errors bucket))
+                      :cljs (js/setTimeout #(fetch-handling-errors bucket) 0)))))
+    (assoc opts :stop-fn #(remove-watch (:queue bucket) watch-id))))
 
 (defmethod start-trigger! :default [_bucket _ opts]
   opts)
