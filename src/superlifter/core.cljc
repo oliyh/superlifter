@@ -12,11 +12,11 @@
        `(~(condp = level
             :debug 'js/console.debug
             :info 'js/console.info)
-         ~@body)
+         ~@args)
        `(~(condp = level
             :debug 'log/debug
             :info 'log/info)
-         ~@body))))
+         ~@args))))
 
 (defprotocol Cache
   (->urania [this])
