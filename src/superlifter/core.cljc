@@ -1,7 +1,8 @@
 (ns superlifter.core
   (:require [urania.core :as u]
             [promesa.core :as prom]
-            #?(:clj [clojure.tools.logging :as log]))
+            #?(:clj [superlifter.logging :refer [log]]
+               :cljs [superlifter.logging :refer-macros [log]]))
   (:refer-clojure :exclude [resolve]))
 
 #?(:cljs (def Throwable js/Error))
@@ -40,13 +41,11 @@
      p)))
 
 (defn- fetch-bucket! [bucket]
-  #?(:clj (log/debug "Fetching bucket" bucket)
-     :cljs (js/console.debug "Fetching bucket" bucket))
+  (log :debug "Fetching bucket" bucket)
   (let [[muses] (reset-vals! (:queue bucket) [])
         cache (get-in bucket [:urania-opts :cache])]
     (if (pos? (count muses))
-      (do #?(:clj (log/debug "Fetching" (count muses) "muses")
-             :cljs (js/console.debug "Fetching" (count muses) "muses"))
+      (do (log :debug "Fetching" (count muses) "muses")
           (-> (u/execute! (u/collect muses)
                           (merge (:urania-opts bucket)
                                  (when cache
@@ -75,11 +74,9 @@
 (defn- fetch-handling-errors [bucket]
   (try (prom/catch (fetch-bucket! bucket)
            (fn [error]
-             #?(:clj (log/warn "Fetch failed" error)
-                :cljs (js/console.warn "Fetch failed" error))))
+             (log :warn "Fetch failed" error)))
        (catch Throwable t
-         #?(:clj (log/warn "Fetch failed" t)
-            :cljs (js/console.warn "Fetch failed" t)))))
+         (log :warn "Fetch failed" t))))
 
 (defmethod start-trigger! :queue-size [bucket _ opts]
   (let [threshold (:threshold opts)
@@ -87,11 +84,9 @@
     (add-watch (:queue bucket)
                watch-id
                (fn [_ _ _ new-state]
-                 #?(:clj (log/debug "Watching queue size" threshold (count new-state) bucket)
-                    :cljs (js/console.debug "Watching queue size" threshold (count new-state) bucket))
+                 (log :debug "Watching queue size" threshold (count new-state) bucket)
                  (when (>= (count new-state) threshold)
-                   #?(:clj (log/debug "Going to fetch" bucket)
-                      :cljs (js/console.debug "Going to fetch" bucket))
+                   (log :debug "Going to fetch" bucket)
                    #?(:clj (future (fetch-handling-errors bucket))
                       :cljs (js/setTimeout #(fetch-handling-errors bucket) 0)))))
     (assoc opts :stop-fn #(remove-watch (:queue bucket) watch-id))))
@@ -106,17 +101,28 @@
     (assoc opts :stop-fn #?(:clj #(future-cancel watcher)
                             :cljs #(js/clearInterval watcher)))))
 
+(defmethod start-trigger! :debounced [bucket _ opts]
+  (let [threshold (:threshold opts)
+        watch-id ::queue-size]
+    (add-watch (:queue bucket)
+               watch-id
+               (fn [_ _ _ new-state]
+                 (log :debug "Watching queue size" threshold (count new-state) bucket)
+                 (when (>= (count new-state) threshold)
+                   (log :debug "Going to fetch" bucket)
+                   #?(:clj (future (fetch-handling-errors bucket))
+                      :cljs (js/setTimeout #(fetch-handling-errors bucket) 0)))))
+    (assoc opts :stop-fn #(remove-watch (:queue bucket) watch-id))))
+
 (defmethod start-trigger! :default [_bucket _ opts]
   opts)
 
 (defn- start-triggers! [{:keys [triggers] :as bucket}]
   (update bucket :triggers
           #(do
-             #?(:clj (log/debug "Starting" (count triggers) "triggers")
-                :cljs (js/console.debug "Starting" (count triggers) "triggers"))
+             (log :debug "Starting" (count triggers) "triggers")
              (reduce-kv (fn [ts trigger-kind trigger-opts]
-                          #?(:clj (log/debug "Starting trigger" trigger-kind trigger-opts)
-                             :cljs (js/console.debug "Starting trigger" trigger-kind trigger-opts))
+                          (log :debug "Starting trigger" trigger-kind trigger-opts)
                           (assoc ts trigger-kind (start-trigger! bucket trigger-kind trigger-opts)))
                         {}
                         %))))
@@ -131,8 +137,7 @@
 (defn- start-buckets! [{:keys [buckets] :as context}]
   (swap! buckets
          #(reduce-kv (fn [buckets id _opts]
-                       #?(:clj (log/debug "Starting bucket" id)
-                          :cljs (js/console.debug "Starting bucket" id))
+                       (log :debug "Starting bucket" id)
                        (update buckets id (partial start-bucket! context id)))
                      %
                      %))
