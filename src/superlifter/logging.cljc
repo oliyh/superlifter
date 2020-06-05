@@ -1,5 +1,5 @@
 (ns superlifter.logging
-  #?(:clj (:require [clojure.tools.logging :as log])))
+  #?(:clj (:require [clojure.tools.logging])))
 
 #?(:clj
    (defmacro log [level & args]
@@ -11,8 +11,8 @@
             :error 'js/console.error)
          ~@args)
        `(~(condp = level
-            :debug 'log/debug
-            :info 'log/info
-            :warn 'log/warn
-            :error 'log/error)
+            :debug 'clojure.tools.logging/debug
+            :info 'clojure.tools.logging/info
+            :warn 'clojure.tools.logging/warn
+            :error 'clojure.tools.logging/error)
          ~@args))))
