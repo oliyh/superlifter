@@ -4,11 +4,11 @@
             [superlifter.core :as s]
             [urania.core :as u]
             [promesa.core :as prom]
-            #?(:clj [clojure.tools.logging :as log]))
+            #?(:clj [superlifter.logging :refer [log]]
+               :cljs [superlifter.logging :refer-macros [log]]))
   (:refer-clojure :exclude [resolve]))
 
 #?(:cljs (def Exception js/Error))
-#?(:cljs (enable-console-print!))
 
 #?(:clj
    (defmacro async [done-sym & body]
@@ -23,11 +23,9 @@
       (reify u/DataSource
         (u/-identity [this] v)
         (u/-fetch [this _]
-          #?(:clj (log/info "Fetching" v)
-             :cljs (js/console.info "Fetching" v))
+          (log :info "Fetching" v)
           (prom/create (fn [resolve _reject]
-                         #?(:clj (log/info "Delivering promise for " v)
-                            :cljs (js/console.info "Delivering promise for " v))
+                         (log :info "Delivering promise for " v)
                          (reset! fetched? true)
                          (resolve v)))))
       {:fetched? fetched?})))
