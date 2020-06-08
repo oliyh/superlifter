@@ -101,18 +101,53 @@
     (assoc opts :stop-fn #?(:clj #(future-cancel watcher)
                             :cljs #(js/clearInterval watcher)))))
 
+#?(:cljs
+   (defn- check-debounced [bucket interval last-updated]
+     (let [lu @last-updated]
+       (cond
+         (nil? lu) (js/setTimeout check-debounced interval bucket interval last-updated)
+
+         (= :exit lu) nil
+
+         (<= interval (- (js/Date.) lu))
+         (do (fetch-handling-errors bucket)
+             (reset! last-updated nil)
+             (js/setTimeout check-debounced 0 bucket interval last-updated))
+
+         :else
+         (js/setTimeout check-debounced (- interval (- (js/Date.) lu)) bucket interval last-updated)))))
+
 (defmethod start-trigger! :debounced [bucket _ opts]
-  (let [threshold (:threshold opts)
-        watch-id ::queue-size]
+  (let [interval (:interval opts)
+        watch-id ::queue-size
+        last-updated (atom nil)
+        watcher #?(:clj (future (loop []
+                                  (let [lu @last-updated]
+                                    (cond
+                                      (nil? lu) (do (Thread/sleep interval)
+                                                    (recur))
+
+                                      (= :exit lu) nil
+
+                                      (<= interval (- (System/currentTimeMillis) lu))
+                                      (do (fetch-handling-errors bucket)
+                                          (reset! last-updated nil)
+                                          (recur))
+
+                                      :else
+                                      (do (Thread/sleep (- interval (- (System/currentTimeMillis) lu)))
+                                          (recur))))))
+                   :cljs (js/setTimeout check-debounced 0 bucket interval last-updated))]
     (add-watch (:queue bucket)
                watch-id
                (fn [_ _ _ new-state]
-                 (log :debug "Watching queue size" threshold (count new-state) bucket)
-                 (when (>= (count new-state) threshold)
-                   (log :debug "Going to fetch" bucket)
-                   #?(:clj (future (fetch-handling-errors bucket))
-                      :cljs (js/setTimeout #(fetch-handling-errors bucket) 0)))))
-    (assoc opts :stop-fn #(remove-watch (:queue bucket) watch-id))))
+                 (log :debug "Watching debounced" interval (count new-state) bucket)
+                 (reset! last-updated #?(:clj (System/currentTimeMillis)
+                                         :cljs (js/Date.)))))
+
+    (assoc opts :stop-fn #(do #?(:clj (future-cancel watcher))
+                              (reset! last-updated :exit)
+                              (remove-watch (:queue bucket) watch-id)))))
 
 (defmethod start-trigger! :default [_bucket _ opts]
   opts)

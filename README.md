@@ -82,6 +82,12 @@ You can specify that the queue is fetched every e.g. 100ms using the following o
 
 This will give batching by time in a similar fashion to DataLoader.
 
+#### Debounced trigger
+You can specify that the queue is fetched when no items have been added within the last e.g. 100ms with these options
+```clj
+{:triggers {:debounced {:interval 100}}}
+```
+
 #### Your own trigger
 
 You can register your own kind of trigger by participating the in `s/start-trigger!` multimethod, so you can listen for other kinds of events that might let you know when it's a good time to perform the fetch.

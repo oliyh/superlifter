@@ -84,6 +84,38 @@
 
                       (done))))))))
 
+(deftest debounced-trigger-test
+  (async
+   done
+   (testing "Debounced trigger mode means the fetch is run after no fetches are scheduled for n millis"
+     (let [s (s/start! {:buckets {:default {:triggers {:debounced {:interval 100}}}}})
+           foo (fetchable :foo)
+           bar (fetchable :bar)
+           baz (fetchable :baz)
+           foo-promise (s/enqueue! s foo)]
+
+       #?(:clj (is (not (prom/resolved? foo-promise))))
+       (is (not (fetched? foo bar baz)))
+
+       #?(:clj (do (Thread/sleep 70)
+                   (s/enqueue! s bar)
+                   (Thread/sleep 70)
+                   (s/enqueue! s baz))
+          :cljs (do (js/setTimeout s/enqueue! 70 s bar)
+                    (js/setTimeout s/enqueue! 140 s baz)))
+
+       (is (not (fetched? foo bar baz)))
+
+       (testing "within the next 100ms the fetch should be triggered"
+         (prom/then foo-promise
+                    (fn [foo-v]
+                      (is (= :foo foo-v))
+
+                      (is (fetched? foo bar baz))
+                      (is (empty? (-> (s/stop! s) :buckets deref :default :queue deref)))
+
+                      (done))))))))
+
 (deftest queue-size-trigger-test
   (async
    done
