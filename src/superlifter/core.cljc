@@ -178,9 +178,19 @@
                      %))
   context)
 
+(defn- stop-bucket! [bucket]
+  (doseq [{:keys [stop-fn]} (vals (:triggers bucket))
+          :when stop-fn]
+    (stop-fn))
+  (fetch-handling-errors bucket))
+
 (defn add-bucket! [context id opts]
   (swap! (:buckets context)
-         #(assoc % id (start-bucket! context id opts)))
+         (fn [buckets]
+           (when-let [existing-bucket (get buckets id)]
+             (stop-bucket! existing-bucket)
+             (log :warn "Overwriting bucket " id))
+           (assoc buckets id (start-bucket! context id opts))))
   context)
 
 (defn default-opts []
@@ -236,8 +246,5 @@
 (defn stop!
   "Stops superlifter"
   [context]
-  (doseq [bucket (vals @(:buckets context))
-          {:keys [stop-fn]} (vals (:triggers bucket))
-          :when stop-fn]
-    (stop-fn))
+  (run! stop-bucket! (vals @(:buckets context)))
   context)
