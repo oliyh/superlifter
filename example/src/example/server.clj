@@ -30,7 +30,8 @@
         (s/add-bucket! :pet-details
                         (fn [pet-ids]
                           {:triggers {:queue-size {:threshold (count pet-ids)}
-                                      :interval {:interval 50}}})))))
+                 ;;                     :interval {:interval 50}
+                                      }})))))
 
 (defn- resolve-pet-details [context _args {:keys [id]}]
   (with-superlifter context

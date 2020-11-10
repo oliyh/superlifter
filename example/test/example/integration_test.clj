@@ -16,7 +16,18 @@
 
 (def query
   "{
-     pets {
+     one: pets {
+       id
+       details {
+         age
+         name
+       }
+       more_details: details {
+         age
+       }
+     }
+
+    two: pets {
        id
        details {
          age
@@ -30,7 +41,17 @@
 
 (deftest integration-test
   (is (= {:data
-          {:pets
+          {:one
+           [{:id "abc-123",
+             :details {:age 11, :name "Lyra"},
+             :more_details {:age 11}}
+            {:id "def-234",
+             :details {:age 11, :name "Pantalaimon"},
+             :more_details {:age 11}}
+            {:id "ghi-345",
+             :details {:age 41, :name "Iorek"},
+             :more_details {:age 41}}]
+           :two
            [{:id "abc-123",
              :details {:age 11, :name "Lyra"},
              :more_details {:age 11}}

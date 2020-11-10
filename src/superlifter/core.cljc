@@ -185,12 +185,13 @@
   (fetch-handling-errors bucket))
 
 (defn add-bucket! [context id opts]
-  (swap! (:buckets context)
-         (fn [buckets]
-           (when-let [existing-bucket (get buckets id)]
-             (stop-bucket! existing-bucket)
-             (log :warn "Overwriting bucket " id))
-           (assoc buckets id (start-bucket! context id opts))))
+  (let [[old-buckets]
+        (swap-vals! (:buckets context)
+                    (fn [buckets]
+                      (assoc buckets id (start-bucket! context id opts))))]
+    (when-let [existing-bucket (get old-buckets id)]
+      (stop-bucket! existing-bucket)
+      (log :warn "Overwriting bucket " id)))
   context)
 
 (defn default-opts []
