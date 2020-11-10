@@ -41,7 +41,7 @@
      p)))
 
 (defn- fetch-bucket! [bucket]
-  (log :debug "Fetching bucket" bucket)
+  (log :info "Fetching bucket" bucket)
   (let [[muses] (reset-vals! (:queue bucket) [])
         cache (get-in bucket [:urania-opts :cache])]
     (if (pos? (count muses))
@@ -145,7 +145,8 @@
                  (reset! last-updated #?(:clj (System/currentTimeMillis)
                                          :cljs (js/Date.)))))
 
-    (assoc opts :stop-fn #(do #?(:clj (future-cancel watcher))
+    (assoc opts :stop-fn #(do #?(:clj (future-cancel watcher)
+                                 :cljs (js/clearInterval watcher))
                               (reset! last-updated :exit)
                               (remove-watch (:queue bucket) watch-id)))))
 
@@ -191,7 +192,7 @@
                       (assoc buckets id (start-bucket! context id opts))))]
     (when-let [existing-bucket (get old-buckets id)]
       (stop-bucket! existing-bucket)
-      (log :warn "Overwriting bucket " id)))
+      (log :warn "Overwriting bucket " id "containing" @(:queue existing-bucket))))
   context)
 
 (defn default-opts []

@@ -21,16 +21,17 @@
 ;; def-superfetcher - a convenience macro like defrecord for combinable things
 (s/def-superfetcher FetchPet [id]
   (fn [many env]
-    (log/info "Combining request for" (count many) "pets")
+    (log/info "Combining request for" (count many) "pets" (map :id many))
     (map (:db env) (map :id many))))
 
 (defn- resolve-pets [context _args _parent]
   (with-superlifter context
     (-> (s/enqueue! (->FetchPets))
         (s/add-bucket! :pet-details
-                        (fn [pet-ids]
+                       (fn [pet-ids]
+                         (println "FetchPets top level returned" (count pet-ids) pet-ids)
                           {:triggers {:queue-size {:threshold (count pet-ids)}
-                 ;;                     :interval {:interval 50}
+                                      ;;:interval {:interval 5000}
                                       }})))))
 
 (defn- resolve-pet-details [context _args {:keys [id]}]
