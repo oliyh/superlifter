@@ -4,7 +4,8 @@
             [com.walmartlabs.lacinia.schema :as schema]
             [superlifter.lacinia :refer [inject-superlifter with-superlifter]]
             [superlifter.api :as s]
-            [clojure.tools.logging :as log]))
+            [clojure.tools.logging :as log])
+  (:import [java.util UUID]))
 
 (def pet-db (atom {"abc-123" {:name "Lyra"
                               :age 11}
@@ -29,7 +30,8 @@
     (-> (s/enqueue! (->FetchPets))
         (s/add-bucket! :pet-details
                        (fn [pet-ids]
-                         {:triggers {:queue-size {:threshold (count pet-ids)}}})))))
+                         {:instance-id (UUID/randomUUID)
+                          :triggers {:queue-size {:threshold (count pet-ids)}}})))))
 
 (defn- resolve-pet-details [context _args {:keys [id]}]
   (with-superlifter context

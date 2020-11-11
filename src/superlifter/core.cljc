@@ -79,7 +79,7 @@
                                   result)
                                 muse)
          trigger-fns (keep :queue-fn (vals (:triggers bucket)))]
-     (log :info "Enqueuing muse into" bucket-id (:id muse))
+     (log :info "Enqueuing muse into" bucket-id (:id muse) (:instance-id bucket))
      ;; atomically add the muse to the queue
      ;; and let the triggers with queue predicates move items from :waiting to :ready
      (swap! (:queue bucket) (fn [queue]
@@ -209,7 +209,7 @@
                                   (fn [buckets]
                                     (assoc buckets id (start-bucket! context id opts))))]
     (when-let [existing-bucket (get old-buckets id)]
-      (log :warn "Overwriting bucket" id)
+      (log :warn "Overwriting bucket" id (:instance-id existing-bucket) "with new instance" (:instance-id opts))
       (let [[existing-queue] (swap-vals! (:queue existing-bucket) assoc :waiting [])]
         (println existing-queue)
         (doseq [muse (:waiting existing-queue)]
