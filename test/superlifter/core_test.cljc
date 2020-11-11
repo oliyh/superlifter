@@ -245,3 +245,32 @@
                        ;; (is (prom/rejected? foo-promise))
                        ))
            (done))))))
+
+(deftest add-bucket-test
+  (async
+   done
+   (let [s (s/start! {})
+         a-muse (assoc (u/value 123) :id 123)]
+
+     (testing "can add a bucket"
+       (s/add-bucket! s :one {::opts 123})
+       (let [bucket-one (-> s :buckets deref :one)]
+         (is (queue-empty? bucket-one))
+         (is (= 123 (::opts bucket-one)))
+
+         (testing "and enqueue muses to it"
+           (s/enqueue! s :one a-muse)
+           (is (not (queue-empty? bucket-one)))))
+
+       (testing "overwriting copies items waiting in queue"
+         (s/add-bucket! s :one {::opts 234})
+         (let [bucket-one (-> s :buckets deref :one)]
+           (is (= 234 (::opts bucket-one)))
+           (is (not (queue-empty? bucket-one)))
+
+           (prom/then (s/fetch! s :one)
+                      (fn [[result]]
+                        (is (= 123 result))
+
+                        (s/stop! s)
+                        (done)))))))))

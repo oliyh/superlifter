@@ -211,6 +211,7 @@
     (when-let [existing-bucket (get old-buckets id)]
       (log :warn "Overwriting bucket" id)
       (let [[existing-queue] (swap-vals! (:queue existing-bucket) assoc :waiting [])]
+        (println existing-queue)
         (doseq [muse (:waiting existing-queue)]
           (enqueue! context id muse))
         (stop-bucket! existing-bucket))))
