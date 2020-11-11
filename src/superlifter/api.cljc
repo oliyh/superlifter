@@ -43,7 +43,6 @@
   "Enqueues a muse describing work to be done and returns a promise which will be delivered with the result of the work.
    The muses in the queue will all be fetched together when the trigger condition is met."
   [& args]
-  (println "Enqueing" args)
   (apply core/enqueue! *instance* args))
 
 (defn fetch!

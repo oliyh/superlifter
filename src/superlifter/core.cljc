@@ -32,12 +32,10 @@
          (get buckets default-bucket-id))))
 
 (defn- fetch-bucket! [bucket]
-  (log :info "Bucket before is" @(:queue bucket))
   (let [muses (:ready (first (swap-vals! (:queue bucket) (fn [queue] (assoc queue :ready [] :last-fetch-id (random-uuid))))))
         cache (get-in bucket [:urania-opts :cache])]
-    (log :info "Fetching bucket" (:id bucket) (count muses) @(:queue bucket))
     (if (pos? (count muses))
-      (do (log :debug "Fetching" (count muses) "muses")
+      (do (log :debug "Fetching" (count muses) "muses from bucket" (:id bucket))
           (-> (u/execute! (u/collect muses)
                           (merge (:urania-opts bucket)
                                  (when cache
@@ -79,8 +77,8 @@
                                   (prom/resolve! p result)
                                   result)
                                 muse)
-         trigger-fns (keep :queue-predicate (vals (:triggers bucket)))]
-     (log :info "Enqueuing muse into" bucket-id trigger-fns)
+         trigger-fns (keep :queue-fn (vals (:triggers bucket)))]
+     (log :debug "Enqueuing muse into" bucket-id)
      ;; atomically add the muse to the queue
      ;; and let the triggers with queue predicates move items from :waiting to :ready
      (swap! (:queue bucket) (fn [queue]
@@ -102,12 +100,12 @@
          (log :warn "Fetch failed" t))))
 
 (defmethod start-trigger! :queue-size [_bucket _ {:keys [threshold] :as opts}]
-  (assoc opts :queue-predicate (fn [{:keys [waiting] :as queue}]
-                                 (if (<= threshold (count waiting))
-                                   (-> queue
-                                       (update :ready into (take threshold waiting))
-                                       (update :waiting #(drop threshold %)))
-                                   queue))))
+  (assoc opts :queue-fn (fn [{:keys [waiting] :as queue}]
+                          (if (<= threshold (count waiting))
+                            (-> queue
+                                (update :ready into (take threshold waiting))
+                                (update :waiting #(drop threshold %)))
+                            queue))))
 
 (defmethod start-trigger! :interval [bucket _ opts]
   (let [watcher #?(:clj (future (loop []
@@ -116,9 +114,8 @@
                                   (recur)))
                    :cljs (js/setInterval #(fetch-all-handling-errors! bucket)
                                          (:interval opts)))]
-    (assoc opts
-           :stop-fn #?(:clj #(future-cancel watcher)
-                       :cljs #(js/clearInterval watcher)))))
+    (assoc opts :stop-fn #?(:clj #(future-cancel watcher)
+                            :cljs #(js/clearInterval watcher)))))
 
 #?(:cljs
    (defn- check-debounced [bucket interval last-updated]
@@ -129,8 +126,7 @@
          (= :exit lu) nil
 
          (<= interval (- (js/Date.) lu))
-         (do (ready-all! bucket)
-             (fetch-all-handling-errors! bucket)
+         (do (fetch-all-handling-errors! bucket)
              (reset! last-updated nil)
              (js/setTimeout check-debounced 0 bucket interval last-updated))
 
@@ -212,7 +208,7 @@
                     (fn [buckets]
                       (assoc buckets id (start-bucket! context id opts))))]
     (when-let [existing-bucket (get old-buckets id)]
-      (log :warn "Overwriting bucket " id "containing" @(:queue existing-bucket))
+      (log :warn "Overwriting bucket" id)
       (stop-bucket! existing-bucket)))
   context)
 
