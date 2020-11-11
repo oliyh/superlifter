@@ -32,10 +32,12 @@
          (get buckets default-bucket-id))))
 
 (defn- fetch-bucket! [bucket]
-  (let [muses (:ready (first (swap-vals! (:queue bucket) (fn [queue] (assoc queue :ready [] :last-fetch-id (random-uuid))))))
+  (let [{:keys [ready waiting]} (first (swap-vals! (:queue bucket) (fn [queue] (assoc queue :ready [] :last-fetch-id (random-uuid)))))
+        muses ready
         cache (get-in bucket [:urania-opts :cache])]
+    (log :info "Fetch called" (:id bucket) (:instance-id bucket) "current state is ready:" (count ready) "waiting:" (count waiting))
     (if (pos? (count muses))
-      (do (log :info "Fetching" (count muses) "muses from bucket" (:id bucket))
+      (do (log :info "Fetching" (count muses) "muses from bucket" (:id bucket) (:instance-id bucket))
           (-> (u/execute! (u/collect muses)
                           (merge (:urania-opts bucket)
                                  (when cache
@@ -82,11 +84,12 @@
      (log :info "Enqueuing muse into" bucket-id (:id muse) (:instance-id bucket))
      ;; atomically add the muse to the queue
      ;; and let the triggers with queue predicates move items from :waiting to :ready
-     (swap! (:queue bucket) (fn [queue]
-                              (reduce (fn [q trigger-fn]
-                                        (trigger-fn q))
-                                      (update queue :waiting conj delivering-muse)
-                                      trigger-fns)))
+     (let [new-state (swap! (:queue bucket) (fn [queue]
+                                              (reduce (fn [q trigger-fn]
+                                                        (trigger-fn q))
+                                                      (update queue :waiting conj delivering-muse)
+                                                      trigger-fns)))]
+       (log :info "New bucket state" (:id bucket) (:instance-id bucket) "ready:" (count (:ready new-state)) "waiting:" (count (:waiting new-state))))
      (fetch-bucket! bucket)
      p)))
 
