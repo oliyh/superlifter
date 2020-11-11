@@ -35,7 +35,7 @@
   (let [muses (:ready (first (swap-vals! (:queue bucket) (fn [queue] (assoc queue :ready [] :last-fetch-id (random-uuid))))))
         cache (get-in bucket [:urania-opts :cache])]
     (if (pos? (count muses))
-      (do (log :debug "Fetching" (count muses) "muses from bucket" (:id bucket))
+      (do (log :info "Fetching" (count muses) "muses from bucket" (:id bucket))
           (-> (u/execute! (u/collect muses)
                           (merge (:urania-opts bucket)
                                  (when cache
@@ -78,7 +78,7 @@
                                   result)
                                 muse)
          trigger-fns (keep :queue-fn (vals (:triggers bucket)))]
-     (log :debug "Enqueuing muse into" bucket-id)
+     (log :info "Enqueuing muse into" bucket-id (:id muse))
      ;; atomically add the muse to the queue
      ;; and let the triggers with queue predicates move items from :waiting to :ready
      (swap! (:queue bucket) (fn [queue]
