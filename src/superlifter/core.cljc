@@ -45,7 +45,8 @@
                  (when cache
                    (urania-> cache new-cache-value))
                  result))))
-      (prom/resolved nil))))
+      (do (log :info "Nothing ready to fetch, only" (count (:waiting @(:queue bucket))) "waiting")
+          (prom/resolved nil)))))
 
 (defn- ready-all! [bucket]
   (swap! (:queue bucket) (fn [queue]
@@ -101,6 +102,7 @@
 
 (defmethod start-trigger! :queue-size [_bucket _ {:keys [threshold] :as opts}]
   (assoc opts :queue-fn (fn [{:keys [waiting] :as queue}]
+                          (log :info "Queue size trigger(" threshold "):" (count waiting) "in waiting," (count (:ready queue)) "are ready")
                           (if (<= threshold (count waiting))
                             (-> queue
                                 (update :ready into (take threshold waiting))
