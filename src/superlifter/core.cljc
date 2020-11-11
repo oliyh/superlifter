@@ -205,13 +205,15 @@
   (fetch-all-handling-errors! bucket))
 
 (defn add-bucket! [context id opts]
-  (let [[old-buckets]
-        (swap-vals! (:buckets context)
-                    (fn [buckets]
-                      (assoc buckets id (start-bucket! context id opts))))]
+  (let [[old-buckets] (swap-vals! (:buckets context)
+                                  (fn [buckets]
+                                    (assoc buckets id (start-bucket! context id opts))))]
     (when-let [existing-bucket (get old-buckets id)]
       (log :warn "Overwriting bucket" id)
-      (stop-bucket! existing-bucket)))
+      (let [[existing-queue] (swap-vals! (:queue existing-bucket) assoc :waiting [])]
+        (doseq [muse (:waiting existing-queue)]
+          (enqueue! context id muse))
+        (stop-bucket! existing-bucket))))
   context)
 
 (defn default-opts []
