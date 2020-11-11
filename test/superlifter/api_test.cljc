@@ -5,7 +5,7 @@
             [promesa.core :as prom]
             #?(:clj [clojure.test :refer [deftest testing is]]
                :cljs [clojure.test :refer-macros [deftest testing is async]])
-            #?(:clj [superlifter.core-test :refer [async]])))
+            [superlifter.core-test :refer [queue-empty? #?(:clj async)]]))
 
 (def-fetcher FetcherPlain [id]
   (fn [_this _env]
@@ -45,5 +45,5 @@
                       (is (= [:fetcher-plain :fetcher-promise :super-plain :super-promise]
                              v))
 
-                      (is (empty? (-> (s/stop! s) :buckets deref :default :queue deref)))
+                      (is (queue-empty? (-> (s/stop! s) :buckets deref :default)))
                       (done))))))))

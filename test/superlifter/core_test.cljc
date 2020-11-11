@@ -33,6 +33,11 @@
 (defn- fetched? [& fetchables]
   (every? true? (map (comp deref :fetched? meta) fetchables)))
 
+(defn queue-empty? [bucket]
+  (let [{:keys [ready waiting]} @(:queue bucket)]
+    (and (empty? ready)
+         (empty? waiting))))
+
 (deftest callback-trigger-test
   (async
    done
@@ -55,7 +60,7 @@
                     (is (= :bar bar-v))
 
                     (is (fetched? foo bar))
-                    (is (empty? (-> (s/stop! s) :buckets deref :default :queue deref)))
+                    (is (queue-empty? (-> (s/stop! s) :buckets deref :default)))
 
                     (done)))))))
 
@@ -80,7 +85,7 @@
                       (is (= :bar bar-v))
 
                       (is (fetched? foo bar))
-                      (is (empty? (-> (s/stop! s) :buckets deref :default :queue deref)))
+                      (is (queue-empty? (-> (s/stop! s) :buckets deref :default)))
 
                       (done))))))))
 
@@ -112,7 +117,7 @@
                       (is (= :foo foo-v))
 
                       (is (fetched? foo bar baz))
-                      (is (empty? (-> (s/stop! s) :buckets deref :default :queue deref)))
+                      (is (queue-empty? (-> (s/stop! s) :buckets deref :default)))
 
                       (done))))))))
 
@@ -137,7 +142,7 @@
                         (is (= :bar bar-v))
 
                         (is (fetched? foo bar))
-                        (is (empty? (-> (s/stop! s) :buckets deref :default :queue deref)))
+                        (is (queue-empty? (-> (s/stop! s) :buckets deref :default)))
 
                         (done)))))))))
 
