@@ -66,3 +66,7 @@
                            {:form-params {:query query}
                             :content-type :json
                             :as :json})))))
+
+(deftest stress-test
+  (dotimes [_i 50]
+    (integration-test)))
