@@ -27,16 +27,16 @@
        }
      }
 
- ##   two: pets {
- ##      id
- ##      details {
- ##        age
- ##        name
- ##      }
- ##      more_details: details {
- ##        age
- ##      }
- ##    }
+    two: pets {
+       id
+       details {
+         age
+         name
+       }
+       more_details: details {
+         age
+       }
+     }
    }")
 
 (deftest integration-test
@@ -51,8 +51,8 @@
             {:id "ghi-345",
              :details {:age 41, :name "Iorek"},
              :more_details {:age 41}}]
-           #_:two
-           #_[{:id "abc-123",
+           :two
+           [{:id "abc-123",
              :details {:age 11, :name "Lyra"},
              :more_details {:age 11}}
             {:id "def-234",
