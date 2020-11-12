@@ -34,9 +34,7 @@
   (every? true? (map (comp deref :fetched? meta) fetchables)))
 
 (defn queue-empty? [bucket]
-  (let [{:keys [ready waiting]} @(:queue bucket)]
-    (and (empty? ready)
-         (empty? waiting))))
+  (empty? (get-in bucket [:queue :waiting])))
 
 (deftest callback-trigger-test
   (async
@@ -134,6 +132,7 @@
          #?(:clj (is (not (prom/resolved? foo-promise))))
          (is (not (fetched? foo bar))))
 
+       (println "noe testing bar")
        (testing "when the queue size reaches 2 the fetch is triggered"
          (let [bar-promise (s/enqueue! s bar)]
            (prom/then (prom/all [foo-promise bar-promise])
@@ -260,7 +259,7 @@
 
          (testing "and enqueue muses to it"
            (s/enqueue! s :one a-muse)
-           (is (not (queue-empty? bucket-one)))))
+           (is (not (queue-empty? (-> s :buckets deref :one))))))
 
        (testing "overwriting copies items waiting in queue"
          (s/add-bucket! s :one {::opts 234})

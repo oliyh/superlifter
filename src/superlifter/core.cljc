@@ -26,43 +26,49 @@
 
 (def default-bucket-id :default)
 
-(defn- bucket-for [context bucket-id]
-  (let [buckets @(:buckets context)]
-    (get buckets bucket-id
-         (get buckets default-bucket-id))))
+(defn- clear-ready [bucket]
+  (update bucket :queue assoc :ready []))
 
-(defn- fetch-bucket! [bucket]
-  (let [{:keys [ready waiting]} (first (swap-vals! (:queue bucket) (fn [queue] (assoc queue :ready [] :last-fetch-id (random-uuid)))))
-        muses ready
-        cache (get-in bucket [:urania-opts :cache])]
-    (log :info "Fetch called" (:id bucket) (:instance-id bucket) "current state is ready:" (count ready) "waiting:" (count waiting))
-    (if (pos? (count muses))
-      (do (log :info "Fetching" (count muses) "muses from bucket" (:id bucket) (:instance-id bucket))
-          (-> (u/execute! (u/collect muses)
-                          (merge (:urania-opts bucket)
-                                 (when cache
-                                   {:cache (->urania cache)})))
-              (prom/then
-               (fn [[result new-cache-value]]
-                 (when cache
-                   (urania-> cache new-cache-value))
-                 result))))
-      (do (log :info "Nothing ready to fetch, only" (count (:waiting @(:queue bucket))) "waiting")
-          (prom/resolved nil)))))
+(defn- ready-all [bucket]
+  (update bucket :queue (fn [queue]
+                          (-> (assoc queue :waiting [])
+                              (assoc :ready (:waiting queue))))))
 
-(defn- ready-all! [bucket]
-  (swap! (:queue bucket) (fn [queue]
-                           (-> queue
-                               (update :ready into (:waiting queue))
-                               (assoc :waiting [])))))
+(defn- describe-queue [queue]
+  (str "ready: " (count (:ready queue)) ", waiting: " (count (:waiting queue))))
+
+(defn- update-bucket! [context bucket-id f]
+  (let [[old new] (map #(get % bucket-id) (swap-vals! (:buckets context) #(update % bucket-id (comp f clear-ready))))
+        _ (log :info "Update bucket called:" bucket-id (describe-queue (:queue old)) "->" (describe-queue (:queue new)))
+        fetches (if-let [muses (not-empty (get-in new [:queue :ready]))]
+                  (let [cache (get-in new [:urania-opts :cache])]
+                    (log :info "Fetching" (count muses) "muses from bucket" bucket-id (:instance-id new) muses)
+                    (-> (u/execute! (u/collect muses)
+                                    (merge (:urania-opts new)
+                                           (when cache
+                                             {:cache (->urania cache)})))
+                        (prom/then
+                         (fn [[result new-cache-value]]
+                           (when cache
+                             (urania-> cache new-cache-value))
+                           result))))
+                  (do (log :info "Nothing ready to fetch for" bucket-id)
+                      (prom/resolved nil)))]
+
+    {:old old
+     :new new
+     :fetches fetches}))
+
+(defn- fetch-bucket! [context bucket-id]
+  ;; todo this can just return the fetches promise
+  (log :info "Fetching everything in bucket" bucket-id)
+  (update-bucket! context bucket-id ready-all))
 
 (defn fetch!
   "Performs a fetch of all muses in the queue"
   ([context] (fetch! context default-bucket-id))
   ([context bucket-id]
-   (let [bucket (bucket-for context bucket-id)]
-     (ready-all! bucket)
-     (fetch-bucket! bucket))))
+   (:fetches (fetch-bucket! context bucket-id))))
 
 (defn fetch-all! [context]
   (prom/then (prom/all (map (partial fetch! context) (keys @(:buckets context))))
@@ -74,73 +80,75 @@
    The muses in the queue will all be fetched together when a trigger condition is met."
   ([context muse] (enqueue! context default-bucket-id muse))
   ([context bucket-id muse]
-   (let [bucket (bucket-for context bucket-id)
-         p (prom/deferred)
+   (let [p (prom/deferred)
          delivering-muse (u/map (fn [result]
                                   (prom/resolve! p result)
                                   result)
-                                muse)
-         trigger-fns (keep :queue-fn (vals (:triggers bucket)))]
-     (log :info "Enqueuing muse into" bucket-id (:id muse) (:instance-id bucket))
-     ;; atomically add the muse to the queue
-     ;; and let the triggers with queue predicates move items from :waiting to :ready
-     (let [new-state (swap! (:queue bucket) (fn [queue]
-                                              (reduce (fn [q trigger-fn]
-                                                        (trigger-fn q))
-                                                      (update queue :waiting conj delivering-muse)
-                                                      trigger-fns)))]
-       (log :info "New bucket state" (:id bucket) (:instance-id bucket) "ready:" (count (:ready new-state)) "waiting:" (count (:waiting new-state))))
-     (fetch-bucket! bucket)
+                                muse)]
+     (log :info "Enqueuing muse into" bucket-id (:id muse))
+
+     (update-bucket! context
+                     bucket-id
+                     (fn [bucket]
+                       (update bucket :queue (fn [queue]
+                                               (reduce (fn [q trigger-fn]
+                                                         (trigger-fn q))
+                                                       (update queue :waiting conj delivering-muse)
+                                                       (keep :queue-fn (vals (:triggers bucket))))))))
      p)))
 
-(defmulti start-trigger! (fn [_bucket kind _opts] kind))
-
-(defn- fetch-all-handling-errors! [bucket]
-  (ready-all! bucket)
-  (try (prom/catch (fetch-bucket! bucket)
+(defn- fetch-all-handling-errors! [context bucket-id]
+  (try (prom/catch (:fetches (fetch-bucket! context bucket-id))
            (fn [error]
              (log :warn "Fetch failed" error)))
        (catch Throwable t
          (log :warn "Fetch failed" t))))
 
-(defmethod start-trigger! :queue-size [_bucket _ {:keys [threshold] :as opts}]
-  (assoc opts :queue-fn (fn [{:keys [waiting] :as queue}]
-                          (log :info "Queue size trigger(" threshold "):" (count waiting) "in waiting," (count (:ready queue)) "are ready")
-                          (if (<= threshold (count waiting))
+(defmulti start-trigger! (fn [kind _context _bucket-id _opts] kind))
+
+(defmethod start-trigger! :queue-size [_ _context _bucket-id {:keys [threshold] :as opts}]
+  (assoc opts :queue-fn (fn [queue]
+                          (log :info "Queue size trigger(" threshold "):" (describe-queue queue))
+                          (if (<= threshold (count (:waiting queue)))
                             (-> queue
-                                (update :ready into (take threshold waiting))
+                                (assoc :ready (take threshold (:waiting queue)))
                                 (update :waiting #(drop threshold %)))
                             queue))))
 
-(defmethod start-trigger! :interval [bucket _ opts]
+(defmethod start-trigger! :interval [_ context bucket-id opts]
   (let [watcher #?(:clj (future (loop []
                                   (Thread/sleep (:interval opts))
-                                  (fetch-all-handling-errors! bucket)
+                                  (log :info "interval trigger(" (:interval opts) ") running")
+                                  (fetch-all-handling-errors! context bucket-id)
                                   (recur)))
-                   :cljs (js/setInterval #(fetch-all-handling-errors! bucket)
+                   :cljs (js/setInterval #(fetch-all-handling-errors! context bucket-id)
                                          (:interval opts)))]
+    ;; todo rewrite this to be a queue-fn that checks if the interval has elapsed since the last update
+    ;; could write current timestamp into the queue, and check if it is more than the interval ago
+    ;; when it's next updated, if so then move everything into ready
+    ;; does this make sense when it's all been quiet and then the first of 8 muses is added? they might normally
+    ;; fall into one bucket but this would force two bucktes - the first with the first, and the second with the rest
     (assoc opts :stop-fn #?(:clj #(future-cancel watcher)
                             :cljs #(js/clearInterval watcher)))))
 
 #?(:cljs
-   (defn- check-debounced [bucket interval last-updated]
+   (defn- check-debounced [context bucket-id interval last-updated]
      (let [lu @last-updated]
        (cond
-         (nil? lu) (js/setTimeout check-debounced interval bucket interval last-updated)
+         (nil? lu) (js/setTimeout check-debounced interval context bucket-id interval last-updated)
 
          (= :exit lu) nil
 
          (<= interval (- (js/Date.) lu))
-         (do (fetch-all-handling-errors! bucket)
+         (do (fetch-all-handling-errors! context bucket-id)
              (reset! last-updated nil)
-             (js/setTimeout check-debounced 0 bucket interval last-updated))
+             (js/setTimeout check-debounced 0 context bucket-id interval last-updated))
 
          :else
-         (js/setTimeout check-debounced (- interval (- (js/Date.) lu)) bucket interval last-updated)))))
+         (js/setTimeout check-debounced (- interval (- (js/Date.) lu)) context bucket-id interval last-updated)))))
 
-(defmethod start-trigger! :debounced [bucket _ opts]
+(defmethod start-trigger! :debounced [_ context bucket-id opts]
   (let [interval (:interval opts)
-        watch-id ::queue-size
         last-updated (atom nil)
         watcher #?(:clj (future (loop []
                                   (let [lu @last-updated]
@@ -151,46 +159,41 @@
                                       (= :exit lu) nil
 
                                       (<= interval (- (System/currentTimeMillis) lu))
-                                      (do (fetch-all-handling-errors! bucket)
+                                      (do (fetch-all-handling-errors! context bucket-id)
                                           (reset! last-updated nil)
                                           (recur))
 
                                       :else
                                       (do (Thread/sleep (- interval (- (System/currentTimeMillis) lu)))
                                           (recur))))))
-                   :cljs (js/setTimeout check-debounced 0 bucket interval last-updated))]
-    (add-watch (:queue bucket)
-               watch-id
-               (fn [_ _ _ new-state]
-                 (log :debug "Watching debounced" interval (count new-state) bucket)
-                 (reset! last-updated #?(:clj (System/currentTimeMillis)
-                                         :cljs (js/Date.)))))
+                   :cljs (js/setTimeout check-debounced 0 context bucket-id interval last-updated))]
+    ;; todo remove the watcher thread, implement in a similar way to the interval trigger
+    (assoc opts
+           :queue-fn (fn [queue]
+                       (log :debug "Watching debounced" interval (describe-queue queue))
+                       (reset! last-updated #?(:clj (System/currentTimeMillis)
+                                               :cljs (js/Date.)))
+                       queue)
+           :stop-fn #(do #?(:clj (future-cancel watcher)
+                            :cljs (js/clearInterval watcher))
+                         (reset! last-updated :exit)))))
 
-    (assoc opts :stop-fn #(do #?(:clj (future-cancel watcher)
-                                 :cljs (js/clearInterval watcher))
-                              (reset! last-updated :exit)
-                              (remove-watch (:queue bucket) watch-id)))))
-
-(defmethod start-trigger! :default [_bucket _ opts]
+(defmethod start-trigger! :default [_context _bucket-id _trigger-kind opts]
   opts)
 
-(defn- start-triggers! [{:keys [triggers] :as bucket}]
-  (update bucket :triggers
+(defn- start-triggers! [context id {:keys [triggers] :as opts}]
+  (update opts :triggers
           #(do
              (log :debug "Starting" (count triggers) "triggers")
              (reduce-kv (fn [ts trigger-kind trigger-opts]
                           (log :debug "Starting trigger" trigger-kind trigger-opts)
-                          (assoc ts trigger-kind (start-trigger! bucket trigger-kind trigger-opts)))
+                          (assoc ts trigger-kind (start-trigger! trigger-kind context id trigger-opts)))
                         {}
                         %))))
 
 (defn- start-bucket! [context id opts]
-  (-> opts
-      (assoc :queue (atom {:ready []
-                           :waiting []})
-             :id id)
-      (update :urania-opts #(merge (:urania-opts context) %))
-      start-triggers!))
+  (start-triggers! context id (-> (assoc opts :queue {:ready [] :waiting []} :id id)
+                                  (update :urania-opts #(merge (:urania-opts context) %)))))
 
 (defn- start-buckets! [{:keys [buckets] :as context}]
   (swap! buckets
@@ -201,23 +204,22 @@
                      %))
   context)
 
-(defn- stop-bucket! [bucket]
-  (doseq [{:keys [stop-fn]} (vals (:triggers bucket))
+(defn- stop-bucket! [context bucket-id]
+  (doseq [{:keys [stop-fn]} (vals (:triggers (get @(:buckets context) bucket-id)))
           :when stop-fn]
-    (stop-fn))
-  (fetch-all-handling-errors! bucket))
+    (stop-fn)))
 
 (defn add-bucket! [context id opts]
   (let [[old-buckets] (swap-vals! (:buckets context)
                                   (fn [buckets]
+                                    ;; todo weird that context is passed into start-bucket?
                                     (assoc buckets id (start-bucket! context id opts))))]
     (when-let [existing-bucket (get old-buckets id)]
       (log :warn "Overwriting bucket" id (:instance-id existing-bucket) "with new instance" (:instance-id opts))
-      (let [[existing-queue] (swap-vals! (:queue existing-bucket) assoc :waiting [])]
-        (println existing-queue)
-        (doseq [muse (:waiting existing-queue)]
-          (enqueue! context id muse))
-        (stop-bucket! existing-bucket))))
+      (println "Queue in bucket being shut down:" (describe-queue (:queue existing-bucket)))
+      ;; todo going in the front door with the re-enqueue means the muses are double-wrapped, would be nice to avoid this
+      (doseq [muse (get-in existing-bucket [:queue :waiting])]
+        (enqueue! context id muse))))
   context)
 
 (defn default-opts []
@@ -273,5 +275,5 @@
 (defn stop!
   "Stops superlifter"
   [context]
-  (run! stop-bucket! (vals @(:buckets context)))
+  (run! (partial stop-bucket! context) (keys @(:buckets context)))
   context)
