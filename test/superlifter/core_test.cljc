@@ -132,7 +132,6 @@
          #?(:clj (is (not (prom/resolved? foo-promise))))
          (is (not (fetched? foo bar))))
 
-       (println "noe testing bar")
        (testing "when the queue size reaches 2 the fetch is triggered"
          (let [bar-promise (s/enqueue! s bar)]
            (prom/then (prom/all [foo-promise bar-promise])
@@ -261,10 +260,10 @@
            (s/enqueue! s :one a-muse)
            (is (not (queue-empty? (-> s :buckets deref :one))))))
 
-       (testing "overwriting copies items waiting in queue"
+       (testing "overwriting does nothing"
          (s/add-bucket! s :one {::opts 234})
          (let [bucket-one (-> s :buckets deref :one)]
-           (is (= 234 (::opts bucket-one)))
+           (is (= 123 (::opts bucket-one)))
            (is (not (queue-empty? bucket-one)))
 
            (prom/then (s/fetch! s :one)

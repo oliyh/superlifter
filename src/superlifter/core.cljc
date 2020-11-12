@@ -3,14 +3,9 @@
             [promesa.core :as prom]
             #?(:clj [superlifter.logging :refer [log]]
                :cljs [superlifter.logging :refer-macros [log]]))
-  (:refer-clojure :exclude [resolve])
-  #?(:clj (:import [java.util UUID])))
+  (:refer-clojure :exclude [resolve]))
 
 #?(:cljs (def Throwable js/Error))
-
-#?(:clj
-   (defn- random-uuid []
-     (UUID/randomUUID)))
 
 (defprotocol Cache
   (->urania [this])
@@ -39,10 +34,10 @@
 
 (defn- update-bucket! [context bucket-id f]
   (let [[old new] (map #(get % bucket-id) (swap-vals! (:buckets context) #(update % bucket-id (comp f clear-ready))))
-        _ (log :info "Update bucket called:" bucket-id (describe-queue (:queue old)) "->" (describe-queue (:queue new)))
+        _ (log :debug "Update bucket called:" bucket-id (describe-queue (:queue old)) "->" (describe-queue (:queue new)))
         fetches (if-let [muses (not-empty (get-in new [:queue :ready]))]
                   (let [cache (get-in new [:urania-opts :cache])]
-                    (log :info "Fetching" (count muses) "muses from bucket" bucket-id (:instance-id new) muses)
+                    (log :info "Fetching" (count muses) "muses from bucket" bucket-id)
                     (-> (u/execute! (u/collect muses)
                                     (merge (:urania-opts new)
                                            (when cache
@@ -52,7 +47,7 @@
                            (when cache
                              (urania-> cache new-cache-value))
                            result))))
-                  (do (log :info "Nothing ready to fetch for" bucket-id)
+                  (do (log :debug "Nothing ready to fetch for" bucket-id)
                       (prom/resolved nil)))]
 
     {:old old
@@ -61,7 +56,6 @@
 
 (defn- fetch-bucket! [context bucket-id]
   ;; todo this can just return the fetches promise
-  (log :info "Fetching everything in bucket" bucket-id)
   (update-bucket! context bucket-id ready-all))
 
 (defn fetch!
@@ -85,8 +79,7 @@
                                   (prom/resolve! p result)
                                   result)
                                 muse)]
-     (log :info "Enqueuing muse into" bucket-id (:id muse))
-
+     (log :debug "Enqueuing muse into" bucket-id (:id muse))
      (update-bucket! context
                      bucket-id
                      (fn [bucket]
@@ -106,9 +99,9 @@
 
 (defmulti start-trigger! (fn [kind _context _bucket-id _opts] kind))
 
-(defmethod start-trigger! :queue-size [_ _context _bucket-id {:keys [threshold] :as opts}]
+(defmethod start-trigger! :queue-size [_ _context bucket-id {:keys [threshold] :as opts}]
   (assoc opts :queue-fn (fn [queue]
-                          (log :info "Queue size trigger(" threshold "):" (describe-queue queue))
+                          (log :debug "Bucket" bucket-id "queue-size trigger(" threshold "):" (describe-queue queue))
                           (if (<= threshold (count (:waiting queue)))
                             (-> queue
                                 (assoc :ready (take threshold (:waiting queue)))
@@ -118,7 +111,7 @@
 (defmethod start-trigger! :interval [_ context bucket-id opts]
   (let [watcher #?(:clj (future (loop []
                                   (Thread/sleep (:interval opts))
-                                  (log :info "interval trigger(" (:interval opts) ") running")
+                                  (log :debug "Bucket" bucket-id "interval trigger(" (:interval opts) ") running")
                                   (fetch-all-handling-errors! context bucket-id)
                                   (recur)))
                    :cljs (js/setInterval #(fetch-all-handling-errors! context bucket-id)
@@ -170,7 +163,7 @@
     ;; todo remove the watcher thread, implement in a similar way to the interval trigger
     (assoc opts
            :queue-fn (fn [queue]
-                       (log :debug "Watching debounced" interval (describe-queue queue))
+                       (log :debug "Bucket" bucket-id "debounced trigger(" interval "):" (describe-queue queue))
                        (reset! last-updated #?(:clj (System/currentTimeMillis)
                                                :cljs (js/Date.)))
                        queue)
@@ -209,17 +202,14 @@
           :when stop-fn]
     (stop-fn)))
 
-(defn add-bucket! [context id opts]
-  (let [[old-buckets] (swap-vals! (:buckets context)
-                                  (fn [buckets]
-                                    ;; todo weird that context is passed into start-bucket?
-                                    (assoc buckets id (start-bucket! context id opts))))]
-    (when-let [existing-bucket (get old-buckets id)]
-      (log :warn "Overwriting bucket" id (:instance-id existing-bucket) "with new instance" (:instance-id opts))
-      (println "Queue in bucket being shut down:" (describe-queue (:queue existing-bucket)))
-      ;; todo going in the front door with the re-enqueue means the muses are double-wrapped, would be nice to avoid this
-      (doseq [muse (get-in existing-bucket [:queue :waiting])]
-        (enqueue! context id muse))))
+(defn add-bucket! [context bucket-id opts]
+  (swap-vals! (:buckets context)
+              (fn [buckets]
+                (if (contains? buckets bucket-id)
+                  (do (log :warn "Bucket" bucket-id "already exists")
+                      buckets)
+                  ;; todo weird that context is passed into start-bucket?
+                  (assoc buckets bucket-id (start-bucket! context bucket-id opts)))))
   context)
 
 (defn default-opts []
