@@ -203,6 +203,7 @@
     (stop-fn)))
 
 (defn add-bucket! [context bucket-id opts]
+  (log :debug "Adding bucket" bucket-id opts)
   (swap-vals! (:buckets context)
               (fn [buckets]
                 (if (contains? buckets bucket-id)
