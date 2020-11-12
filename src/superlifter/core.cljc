@@ -174,24 +174,24 @@
 (defmethod start-trigger! :default [_context _bucket-id _trigger-kind opts]
   opts)
 
-(defn- start-triggers! [context id {:keys [triggers] :as opts}]
+(defn- start-triggers! [context bucket-id {:keys [triggers] :as opts}]
   (update opts :triggers
           #(do
-             (log :debug "Starting" (count triggers) "triggers")
+             (log :debug "Starting" (count triggers) "triggers for bucket" bucket-id)
              (reduce-kv (fn [ts trigger-kind trigger-opts]
-                          (log :debug "Starting trigger" trigger-kind trigger-opts)
-                          (assoc ts trigger-kind (start-trigger! trigger-kind context id trigger-opts)))
+                          (log :debug "Starting trigger" trigger-kind "for bucket" bucket-id trigger-opts)
+                          (assoc ts trigger-kind (start-trigger! trigger-kind context bucket-id trigger-opts)))
                         {}
                         %))))
 
-(defn- start-bucket! [context id opts]
-  (start-triggers! context id (-> (assoc opts :queue {:ready [] :waiting []} :id id)
-                                  (update :urania-opts #(merge (:urania-opts context) %)))))
+(defn- start-bucket! [context bucket-id opts]
+  (log :debug "Starting bucket" bucket-id)
+  (start-triggers! context bucket-id (-> (assoc opts :queue {:ready [] :waiting []} :id bucket-id)
+                                         (update :urania-opts #(merge (:urania-opts context) %)))))
 
 (defn- start-buckets! [{:keys [buckets] :as context}]
   (swap! buckets
          #(reduce-kv (fn [buckets id _opts]
-                       (log :debug "Starting bucket" id)
                        (update buckets id (partial start-bucket! context id)))
                      %
                      %))
