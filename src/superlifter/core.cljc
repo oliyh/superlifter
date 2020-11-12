@@ -33,7 +33,14 @@
   (str "ready: " (count (:ready queue)) ", waiting: " (count (:waiting queue))))
 
 (defn- update-bucket! [context bucket-id f]
-  (let [[old new] (map #(get % bucket-id) (swap-vals! (:buckets context) #(update % bucket-id (comp f clear-ready))))
+  (let [bucket-id (if (contains? @(:buckets context) bucket-id)
+                    bucket-id
+                    (do (log :warn "Bucket" bucket-id "does not exist, using default bucket")
+                        default-bucket-id))
+        [old new] (map #(get % bucket-id)
+                       (swap-vals! (:buckets context)
+                                   (fn [buckets]
+                                     (update buckets bucket-id (comp f clear-ready)))))
         _ (log :debug "Update bucket called:" bucket-id (describe-queue (:queue old)) "->" (describe-queue (:queue new)))
         fetches (if-let [muses (not-empty (get-in new [:queue :ready]))]
                   (let [cache (get-in new [:urania-opts :cache])]

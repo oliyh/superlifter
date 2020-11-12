@@ -272,3 +272,11 @@
 
                         (s/stop! s)
                         (done)))))))))
+
+(deftest non-existent-bucket-test
+  (let [s (s/start! {})
+        a-muse (assoc (u/value 123) :id 123)]
+
+    (testing "enqueueing goes to default bucket"
+      (s/enqueue! s :one a-muse)
+      (is (not (queue-empty? (-> s :buckets deref s/default-bucket-id)))))))
