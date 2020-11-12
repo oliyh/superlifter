@@ -3,16 +3,19 @@
     <encoder>
       <pattern>%-5level %logger{36} - %msg%n</pattern>
     </encoder>
-    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+<!--    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
       <level>INFO</level>
     </filter>
+    -->
   </appender>
 
   <root level="INFO">
     <appender-ref ref="STDOUT" />
   </root>
 
-  <logger name="io.pedestal" level="ALL" />
+  <logger name="io.pedestal" level="INFO"/>
   <logger name="org.eclipse" level="INFO"/>
+  <logger name="superlifter.core" level="DEBUG"/>
+  <logger name="superlifter.api" level="DEBUG"/>
 
 </configuration>

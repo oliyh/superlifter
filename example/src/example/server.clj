@@ -4,6 +4,7 @@
             [com.walmartlabs.lacinia.schema :as schema]
             [superlifter.lacinia :refer [inject-superlifter with-superlifter]]
             [superlifter.api :as s]
+            [promesa.core :as prom]
             [clojure.tools.logging :as log])
   (:import [java.util UUID]))
 
@@ -33,6 +34,14 @@
                          {:instance-id (UUID/randomUUID)
                           :triggers {:queue-size {:threshold (count pet-ids)}}})))))
 
+(defn- resolve-pet [context args _parent]
+  (with-superlifter context
+    (-> (prom/promise {:id (:id args)})
+        (s/add-bucket! :pet-details
+                       (fn [pet-ids]
+                         {:instance-id (UUID/randomUUID)
+                          :triggers {:queue-size {:threshold (count pet-ids)}}})))))
+
 (defn- resolve-pet-details [context _args {:keys [id]}]
   (with-superlifter context
     (s/enqueue! :pet-details (->FetchPet id))))
@@ -45,7 +54,11 @@
                                       :resolve resolve-pet-details}}}}
    :queries {:pets
              {:type '(list :Pet)
-              :resolve resolve-pets}}})
+              :resolve resolve-pets}
+             :pet
+             {:type :Pet
+              :resolve resolve-pet
+              :args {:id {:type 'String}}}}})
 
 (def lacinia-opts {:graphiql true})
 
