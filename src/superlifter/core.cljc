@@ -115,17 +115,23 @@
                                 (update-in [:queue :waiting] #(drop threshold %)))
                             bucket))))
 
-(defmethod start-trigger! :elastic [kind  _context bucket-id opts]
-  (assoc opts :queue-fn (fn [{:keys [queue] :as bucket}]
-                          (let [threshold (get-in bucket [:triggers kind :threshold] 0)]
-                            (log :debug "Bucket" bucket-id "elastic trigger(" threshold "):" (describe-queue queue))
-                            (if (and (pos? threshold)
-                                     (= threshold (count (:waiting queue))))
-                              (-> bucket
-                                  (assoc-in [:queue :ready] (take threshold (:waiting queue)))
-                                  (update [:queue :waiting] #(drop threshold %))
-                                  (assoc-in [:triggers kind :threshold] 0))
-                              bucket)))))
+(defmethod start-trigger! :elastic [kind  _context bucket-id {:keys [threshold]}]
+  (assoc opts
+         :threshold threshold ;; initial thre
+         :queue-fn (fn [{:keys [queue] :as bucket}]
+                     (let [threshold (get-in bucket [:triggers kind :threshold] 0)]
+                       (log :debug "Bucket" bucket-id "elastic trigger(" threshold "):" (describe-queue queue))
+                       (if (<= threshold (count (:waiting queue)))
+                         (-> bucket
+                             (assoc-in [:queue :ready] (take threshold (:waiting queue)))
+                             (update [:queue :waiting] #(drop threshold %))
+                             (assoc-in [:triggers kind :threshold] 0))
+                         bucket)))))
+
+(defn grow-elastic-threshold! [context bucket-id increment]
+  (update-bucket! context bucket-id (fn [bucket]
+                                      (update-in bucket [:triggers :elastic :threshold] + increment)))
+  context)
 
 (defmethod start-trigger! :interval [_ context bucket-id opts]
   (let [watcher #?(:clj (future (loop []
