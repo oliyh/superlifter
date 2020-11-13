@@ -90,11 +90,11 @@
      (update-bucket! context
                      bucket-id
                      (fn [bucket]
-                       (update bucket :queue (fn [queue]
-                                               (reduce (fn [q trigger-fn]
-                                                         (trigger-fn q))
-                                                       (update queue :waiting conj delivering-muse)
-                                                       (keep :queue-fn (vals (:triggers bucket))))))))
+                       (reduce (fn [b trigger-fn]
+                                 (trigger-fn b))
+                               (update-in bucket [:queue :waiting] conj delivering-muse)
+                               ;; todo rename to enqueue-fn?
+                               (keep :queue-fn (vals (:triggers bucket))))))
      p)))
 
 (defn- fetch-all-handling-errors! [context bucket-id]
@@ -107,13 +107,25 @@
 (defmulti start-trigger! (fn [kind _context _bucket-id _opts] kind))
 
 (defmethod start-trigger! :queue-size [_ _context bucket-id {:keys [threshold] :as opts}]
-  (assoc opts :queue-fn (fn [queue]
+  (assoc opts :queue-fn (fn [{:keys [queue] :as bucket}]
                           (log :debug "Bucket" bucket-id "queue-size trigger(" threshold "):" (describe-queue queue))
-                          (if (<= threshold (count (:waiting queue)))
-                            (-> queue
-                                (assoc :ready (take threshold (:waiting queue)))
-                                (update :waiting #(drop threshold %)))
-                            queue))))
+                          (if (= threshold (count (:waiting queue)))
+                            (-> bucket
+                                (assoc-in [:queue :ready] (take threshold (:waiting queue)))
+                                (update-in [:queue :waiting] #(drop threshold %)))
+                            bucket))))
+
+(defmethod start-trigger! :elastic [kind  _context bucket-id opts]
+  (assoc opts :queue-fn (fn [{:keys [queue] :as bucket}]
+                          (let [threshold (get-in bucket [:triggers kind :threshold] 0)]
+                            (log :debug "Bucket" bucket-id "elastic trigger(" threshold "):" (describe-queue queue))
+                            (if (and (pos? threshold)
+                                     (= threshold (count (:waiting queue))))
+                              (-> bucket
+                                  (assoc-in [:queue :ready] (take threshold (:waiting queue)))
+                                  (update [:queue :waiting] #(drop threshold %))
+                                  (assoc-in [:triggers kind :threshold] 0))
+                              bucket)))))
 
 (defmethod start-trigger! :interval [_ context bucket-id opts]
   (let [watcher #?(:clj (future (loop []
@@ -169,11 +181,11 @@
                    :cljs (js/setTimeout check-debounced 0 context bucket-id interval last-updated))]
     ;; todo remove the watcher thread, implement in a similar way to the interval trigger
     (assoc opts
-           :queue-fn (fn [queue]
-                       (log :debug "Bucket" bucket-id "debounced trigger(" interval "):" (describe-queue queue))
+           :queue-fn (fn [bucket]
+                       (log :debug "Bucket" bucket-id "debounced trigger(" interval "):" (describe-queue (:queue bucket)))
                        (reset! last-updated #?(:clj (System/currentTimeMillis)
                                                :cljs (js/Date.)))
-                       queue)
+                       bucket)
            :stop-fn #(do #?(:clj (future-cancel watcher)
                             :cljs (js/clearInterval watcher))
                          (reset! last-updated :exit)))))
