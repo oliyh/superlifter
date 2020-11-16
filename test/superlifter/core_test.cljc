@@ -159,7 +159,8 @@
          (is (fetched? foo)))
 
        (testing "can set threshold"
-         (s/grow-elastic-threshold! s :default 2)
+         (s/update-trigger! s :default :elastic (fn [opts]
+                                                  (assoc opts :threshold 2)))
 
          (testing "not triggered when queue size below threshold"
            (let [bar-promise (s/enqueue! s bar)]

@@ -102,7 +102,7 @@
        }
      }
 
-     pet(id: \"abc-def\") {
+     pet(id: \"abc-123\") {
        id
        details {
          age
@@ -117,8 +117,7 @@
            [{:id "abc-123",
              :details {:age 11, :name "Lyra"},}
             {:id "def-234",
-             :details {:age 11, :name "Pantalaimon"},
-             :more_details {:age 11}}
+             :details {:age 11, :name "Pantalaimon"},}
             {:id "ghi-345",
              :details {:age 41, :name "Iorek"},}]
            :pet

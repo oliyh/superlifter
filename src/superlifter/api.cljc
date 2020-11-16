@@ -61,5 +61,11 @@
             result)
           p))
 
+(defn update-trigger! [p bucket-id trigger-kind opts-fn]
+  (unwrap (bound-fn [result]
+            (core/update-trigger! *instance* bucket-id trigger-kind #(opts-fn % result))
+            result)
+          p))
+
 (def start! core/start!)
 (def stop! core/stop!)

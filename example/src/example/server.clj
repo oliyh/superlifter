@@ -29,18 +29,16 @@
 (defn- resolve-pets [context _args _parent]
   (with-superlifter context
     (-> (s/enqueue! (->FetchPets))
-        (s/add-bucket! :pet-details
-                       (fn [pet-ids]
-                         {:instance-id (UUID/randomUUID)
-                          :triggers {:queue-size {:threshold (count pet-ids)}}})))))
+        (s/update-trigger! :pet-details :elastic
+                           (fn [trigger-opts pet-ids]
+                             (update trigger-opts :threshold + (count pet-ids)))))))
 
 (defn- resolve-pet [context args _parent]
   (with-superlifter context
     (-> (prom/promise {:id (:id args)})
-        (s/add-bucket! :pet-details
-                       (fn [pet-ids]
-                         {:instance-id (UUID/randomUUID)
-                          :triggers {:queue-size {:threshold (count pet-ids)}}})))))
+        (s/update-trigger! :pet-details :elastic
+                           (fn [trigger-opts _pet-ids]
+                             (update trigger-opts :threshold inc))))))
 
 (defn- resolve-pet-details [context _args {:keys [id]}]
   (with-superlifter context
@@ -63,7 +61,8 @@
 (def lacinia-opts {:graphiql true})
 
 (def superlifter-args
-  {:buckets {:default {:triggers {:queue-size {:threshold 1}}}}
+  {:buckets {:default {:triggers {:queue-size {:threshold 1}}}
+             :pet-details {:triggers {:elastic {:threshold 0}}}}
    :urania-opts {:env {:db @pet-db}}})
 
 (def service

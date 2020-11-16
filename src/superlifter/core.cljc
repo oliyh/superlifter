@@ -128,10 +128,9 @@
                              (assoc-in [:triggers kind :threshold] 0))
                          bucket)))))
 
-(defn grow-elastic-threshold! [context bucket-id increment]
+(defn update-trigger! [context bucket-id trigger-kind opts-fn]
   (update-bucket! context bucket-id (fn [bucket]
-                                      (update-in bucket [:triggers :elastic :threshold] + increment)))
-  context)
+                                      (update-in bucket [:triggers trigger-kind] opts-fn))))
 
 (defmethod start-trigger! :interval [_ context bucket-id opts]
   (let [watcher #?(:clj (future (loop []
