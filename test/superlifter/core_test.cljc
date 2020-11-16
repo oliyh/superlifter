@@ -155,32 +155,35 @@
            foo-promise (s/enqueue! s foo)]
 
        (testing "triggered immediately when queue size exceeds threshold"
-         #?(:clj (is (prom/resolved? foo-promise)))
-         (is (fetched? foo)))
+         (prom/then
+          foo-promise
+          (fn [foo-v]
+            (is (= :foo foo-v))
+            #?(:clj (is (prom/resolved? foo-promise)))
+            (is (fetched? foo))
 
-       (testing "can set threshold"
-         (s/update-trigger! s :default :elastic (fn [opts]
-                                                  (assoc opts :threshold 2)))
+            (testing "can set threshold"
+              (s/update-trigger! s :default :elastic (fn [opts]
+                                                       (assoc opts :threshold 2)))
 
-         (testing "not triggered when queue size below threshold"
-           (let [bar-promise (s/enqueue! s bar)]
-             #?(:clj (is (not (prom/resolved? bar-promise))))
-             (is (not (fetched? bar)))
+              (testing "not triggered when queue size below threshold"
+                (let [bar-promise (s/enqueue! s bar)]
+                  #?(:clj (is (not (prom/resolved? bar-promise))))
+                  (is (not (fetched? bar)))
 
-             (testing "when the queue size reaches 2 the fetch is triggered"
-               (let [baz-promise (s/enqueue! s baz)]
-                 (prom/then (prom/all [foo-promise bar-promise baz-promise])
-                            (fn [[foo-v bar-v baz-v]]
-                              (is (= :foo foo-v))
-                              (is (= :bar bar-v))
-                              (is (= :baz baz-v))
+                  (testing "when the queue size reaches 2 the fetch is triggered"
+                    (let [baz-promise (s/enqueue! s baz)]
+                      (prom/then (prom/all [bar-promise baz-promise])
+                                 (fn [[bar-v baz-v]]
+                                   (is (= :bar bar-v))
+                                   (is (= :baz baz-v))
 
-                              (is (fetched? foo bar baz))
-                              (let [default-bucket (-> (s/stop! s) :buckets deref :default)]
-                                (is (queue-empty? default-bucket))
-                                (testing "threshold is reset to zero"
-                                  (is (zero? (get-in default-bucket [:triggers :elastic :threshold])))))
-                              (done))))))))))))
+                                   (is (fetched? foo bar baz))
+                                   (let [default-bucket (-> (s/stop! s) :buckets deref :default)]
+                                     (is (queue-empty? default-bucket))
+                                     (testing "threshold is reset to zero"
+                                       (is (zero? (get-in default-bucket [:triggers :elastic :threshold])))))
+                                   (done)))))))))))))))
 
 (deftest multi-buckets-test
   (async
