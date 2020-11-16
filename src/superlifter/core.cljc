@@ -115,16 +115,16 @@
                                 (update-in [:queue :waiting] #(drop threshold %)))
                             bucket))))
 
-(defmethod start-trigger! :elastic [kind  _context bucket-id {:keys [threshold]}]
+(defmethod start-trigger! :elastic [kind  _context bucket-id {:keys [threshold] :as opts}]
   (assoc opts
-         :threshold threshold ;; initial thre
+         :threshold threshold ;; initial threshold
          :queue-fn (fn [{:keys [queue] :as bucket}]
                      (let [threshold (get-in bucket [:triggers kind :threshold] 0)]
                        (log :debug "Bucket" bucket-id "elastic trigger(" threshold "):" (describe-queue queue))
                        (if (<= threshold (count (:waiting queue)))
                          (-> bucket
-                             (assoc-in [:queue :ready] (take threshold (:waiting queue)))
-                             (update [:queue :waiting] #(drop threshold %))
+                             (assoc-in [:queue :ready] (:waiting queue))
+                             (assoc-in [:queue :waiting] [])
                              (assoc-in [:triggers kind :threshold] 0))
                          bucket)))))
 
