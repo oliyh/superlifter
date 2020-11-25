@@ -1,7 +1,7 @@
 (ns superlifter.api
   (:require [superlifter.core :as core]
             [promesa.core :as prom]
-            [urania.core :as u]))
+            #?(:clj [urania.core :as u])))
 
 (defn unwrap
   ([p] (unwrap identity p))
