@@ -1,7 +1,7 @@
 (ns superlifter.api
   (:require [superlifter.core :as core]
             [promesa.core :as prom]
-            [urania.core :as u]))
+            #?(:clj [urania.core :as u])))
 
 (defn unwrap
   ([p] (unwrap identity p))
@@ -58,6 +58,12 @@
 (defn add-bucket! [p id opts-fn]
   (unwrap (bound-fn [result]
             (core/add-bucket! *instance* id (opts-fn result))
+            result)
+          p))
+
+(defn update-trigger! [p bucket-id trigger-kind opts-fn]
+  (unwrap (bound-fn [result]
+            (core/update-trigger! *instance* bucket-id trigger-kind #(opts-fn % result))
             result)
           p))
 

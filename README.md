@@ -74,6 +74,14 @@ You can specify that the queue is fetched when the queue reaches a certain size.
 {:triggers {:queue-size {:threshold 10}}}
 ```
 
+#### Elastic trigger
+
+You can specify that the queue is fetched when the queue size exceeds the threshold. The threshold can be updated dynamically and snaps
+back to zero when a fetch is performed, in contrast to the queue size trigger which remains at a fixed size. The trigger can be specified as follows:
+```clj
+{:triggers {:elastic {:threshold 0}}}
+```
+
 #### Interval trigger
 You can specify that the queue is fetched every e.g. 100ms using the following options:
 ```clj
@@ -100,6 +108,9 @@ You can supply any number of triggers which will all run concurrently and the qu
 {:triggers {:queue-size {:threshold 10}
             :interval {:interval 100}}}
 ```
+
+It is recommended that a `:queue-size` trigger is always used in combination with an `:interval` or `debounced` trigger in order to avoid
+hanging when you have e.g. a queue size of 5 but only four muses are enqueued within it.
 
 ## Lacinia usage
 
@@ -151,10 +162,9 @@ We can rewrite this using superlifter (see the [example code](https://github.com
 (defn- resolve-pets [context _args _parent]
   (with-superlifter context
     (-> (s/enqueue! (->FetchPets))
-        (s/add-bucket! :pet-details
-                        (fn [pet-ids]
-                          {:triggers {:queue-size {:threshold (count pet-ids)}
-                                      :interval {:interval 50}}})))))
+        (s/update-trigger! :pet-details :elastic
+                           (fn [trigger-opts pet-ids]
+                             (update trigger-opts :threshold + (count pet-ids)))))))
 
 (defn- resolve-pet-details [context _args {:keys [id]}]
   (with-superlifter context
@@ -179,7 +189,8 @@ There is an `inject-superlifter` interceptor which will help you do this:
 (def lacinia-opts {:graphiql true})
 
 (def superlifter-args
-  {:buckets {:default {:triggers {:queue-size {:threshold 1}}}}
+  {:buckets {:default {:triggers {:queue-size {:threshold 1}}}
+             :pet-details {:triggers {:elastic {:threshold 0}}}
    :urania-opts {:env {:db @pet-db}}})
 
 (def service

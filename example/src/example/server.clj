@@ -4,7 +4,9 @@
             [com.walmartlabs.lacinia.schema :as schema]
             [superlifter.lacinia :refer [inject-superlifter with-superlifter]]
             [superlifter.api :as s]
-            [clojure.tools.logging :as log]))
+            [promesa.core :as prom]
+            [clojure.tools.logging :as log])
+  (:import [java.util UUID]))
 
 (def pet-db (atom {"abc-123" {:name "Lyra"
                               :age 11}
@@ -21,16 +23,22 @@
 ;; def-superfetcher - a convenience macro like defrecord for combinable things
 (s/def-superfetcher FetchPet [id]
   (fn [many env]
-    (log/info "Combining request for" (count many) "pets")
+    (log/info "Combining request for" (count many) "pets" (map :id many))
     (map (:db env) (map :id many))))
 
 (defn- resolve-pets [context _args _parent]
   (with-superlifter context
     (-> (s/enqueue! (->FetchPets))
-        (s/add-bucket! :pet-details
-                        (fn [pet-ids]
-                          {:triggers {:queue-size {:threshold (count pet-ids)}
-                                      :interval {:interval 50}}})))))
+        (s/update-trigger! :pet-details :elastic
+                           (fn [trigger-opts pet-ids]
+                             (update trigger-opts :threshold + (count pet-ids)))))))
+
+(defn- resolve-pet [context args _parent]
+  (with-superlifter context
+    (-> (prom/promise {:id (:id args)})
+        (s/update-trigger! :pet-details :elastic
+                           (fn [trigger-opts _pet-ids]
+                             (update trigger-opts :threshold inc))))))
 
 (defn- resolve-pet-details [context _args {:keys [id]}]
   (with-superlifter context
@@ -44,12 +52,17 @@
                                       :resolve resolve-pet-details}}}}
    :queries {:pets
              {:type '(list :Pet)
-              :resolve resolve-pets}}})
+              :resolve resolve-pets}
+             :pet
+             {:type :Pet
+              :resolve resolve-pet
+              :args {:id {:type 'String}}}}})
 
 (def lacinia-opts {:graphiql true})
 
 (def superlifter-args
-  {:buckets {:default {:triggers {:queue-size {:threshold 1}}}}
+  {:buckets {:default {:triggers {:queue-size {:threshold 1}}}
+             :pet-details {:triggers {:elastic {:threshold 0}}}}
    :urania-opts {:env {:db @pet-db}}})
 
 (def service
