@@ -42,16 +42,19 @@
 (defn enqueue!
   "Enqueues a muse describing work to be done and returns a promise which will be delivered with the result of the work.
    The muses in the queue will all be fetched together when the trigger condition is met."
+  {:arglists '([context muse] [context bucket-id muse])}
   [& args]
   (apply core/enqueue! *instance* args))
 
 (defn fetch!
   "Performs a fetch of all muses in the queue for the given bucket, or the default bucket if not specified"
+  {:arglists '([context] [context bucket-id])}
   [& args]
   (apply core/fetch! *instance* args))
 
 (defn fetch-all!
   "Performs a fetch of all muses in the queues of all buckets"
+  {:arglists '([context])}
   [& args]
   (apply core/fetch-all! *instance* args))
 
