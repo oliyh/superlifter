@@ -1,12 +1,12 @@
 (ns example.server
   (:require [io.pedestal.http :as server]
+            [com.walmartlabs.lacinia.resolve :as resolve]
             [com.walmartlabs.lacinia.pedestal :as lacinia]
             [com.walmartlabs.lacinia.schema :as schema]
             [superlifter.lacinia :refer [inject-superlifter with-superlifter]]
             [superlifter.api :as s]
             [promesa.core :as prom]
-            [clojure.tools.logging :as log])
-  (:import [java.util UUID]))
+            [clojure.tools.logging :as log]))
 
 (def pet-db (atom {"abc-123" {:name "Lyra"
                               :age 11}
@@ -38,7 +38,9 @@
     (-> (prom/promise {:id (:id args)})
         (s/update-trigger! :pet-details :elastic
                            (fn [trigger-opts _pet-ids]
-                             (update trigger-opts :threshold inc))))))
+                             (update trigger-opts :threshold inc)))
+        (prom/then (fn [result]
+                     (resolve/with-context result {::pet-id (:id args)}))))))
 
 (defn- resolve-pet-details [context _args {:keys [id]}]
   (with-superlifter context
