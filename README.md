@@ -190,7 +190,7 @@ There is an `inject-superlifter` interceptor which will help you do this:
 
 (def superlifter-args
   {:buckets {:default {:triggers {:queue-size {:threshold 1}}}
-             :pet-details {:triggers {:elastic {:threshold 0}}}
+             :pet-details {:triggers {:elastic {:threshold 0}}}}
    :urania-opts {:env {:db @pet-db}}})
 
 (def service
