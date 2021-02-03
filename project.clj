@@ -8,7 +8,7 @@
                  [org.clojure/tools.logging "0.6.0"]]
   :profiles {:provided {:dependencies [[org.clojure/clojure "1.10.1"]
                                        [org.clojure/clojurescript "1.10.597"]]}
-             :lacinia  {:dependencies [[com.walmartlabs/lacinia-pedestal "0.14.0-alpha-2"]]}
+             :test     {:dependencies [[com.walmartlabs/lacinia-pedestal "0.14.0-alpha-2"]]}
              :dev      {:dependencies [[binaryage/devtools "1.0.0"]
                                        [com.bhauman/figwheel-main "0.2.1"]
                                        [org.clojure/tools.reader "1.2.2"]
