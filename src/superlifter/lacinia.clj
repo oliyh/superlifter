@@ -2,7 +2,8 @@
   (:require [superlifter.core :as s]
             [superlifter.api :as api]
             [io.pedestal.interceptor :refer [interceptor]]
-            [com.walmartlabs.lacinia.resolve :as resolve]))
+            [com.walmartlabs.lacinia.resolve :as resolve]
+            [promesa.core :as prom]))
 
 (defn inject-superlifter [superlifter-args]
   (interceptor
@@ -14,7 +15,7 @@
 
 (defn ->lacinia-promise [sl-result]
   (let [l-prom (resolve/resolve-promise)]
-    (api/unwrap #(resolve/deliver! l-prom %) sl-result)
+    (api/unwrap #(resolve/deliver! l-prom %) (prom/catch sl-result prom/resolved))
     l-prom))
 
 (defmacro with-superlifter [ctx body]
