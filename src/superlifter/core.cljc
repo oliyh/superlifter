@@ -139,7 +139,7 @@
 
          (<= interval (- (js/Date.) lu))
          (do (fetch-all-handling-errors! context bucket-id)
-             (reset! last-updated nil)
+             (compare-and-set! last-updated lu nil)
              (js/setTimeout check-debounced 0 context bucket-id interval last-updated))
 
          :else
@@ -158,7 +158,7 @@
 
                                       (<= interval (- (System/currentTimeMillis) lu))
                                       (do (fetch-all-handling-errors! context bucket-id)
-                                          (reset! last-updated nil)
+                                          (compare-and-set! last-updated lu nil)
                                           (recur))
 
                                       :else
