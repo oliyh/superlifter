@@ -158,7 +158,7 @@
 
                                       (<= interval (- (System/currentTimeMillis) lu))
                                       (do (fetch-all-handling-errors! context bucket-id)
-                                          (swap! last-updated #(when (not= % lu) %))
+                                          (compare-and-set! last-updated lu nil)
                                           (recur))
 
                                       :else
