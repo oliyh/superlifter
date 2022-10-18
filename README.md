@@ -208,6 +208,9 @@ There is an `inject-superlifter` interceptor which will help you do this:
 ## Build
 [![CircleCI](https://circleci.com/gh/oliyh/superlifter.svg?style=svg)](https://circleci.com/gh/oliyh/superlifter)
 
+## Sponsorship
+Development and maintenance is generously sponsored by @toyokumo
+
 ## License
 
 Copyright © 2019 oliyh
