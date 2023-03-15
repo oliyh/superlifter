@@ -17,21 +17,39 @@
              (-fetch [this# env#]
                (unwrap (~do-fetch-fn this# env#))))))
 
-#?(:clj (defmacro def-superfetcher [sym bindings do-fetch-fn]
-          `(defrecord ~sym ~bindings
-             u/DataSource
-             (-identity [this#] (:id this#))
-             (-fetch [this# env#]
-               (unwrap first (~do-fetch-fn [this#] env#)))
+#?(:clj (defmacro def-superfetcher
+          ([sym bindings do-fetch-fn]
+           `(defrecord ~sym ~bindings
+              u/DataSource
+              (-identity [this#] (:id this#))
+              (-fetch [this# env#]
+                (unwrap first (~do-fetch-fn [this#] env#)))
 
-             u/BatchedSource
-             (-fetch-multi [muse# muses# env#]
-               (let [muses# (cons muse# muses#)]
-                 (unwrap (fn [responses#]
-                           (zipmap (map u/-identity muses#)
-                                   responses#))
-                         (~do-fetch-fn muses# env#)))))))
+              u/BatchedSource
+              (-fetch-multi [muse# muses# env#]
+                (let [muses# (cons muse# muses#)]
+                  (unwrap (fn [responses#]
+                            (zipmap (map u/-identity muses#)
+                                    responses#))
+                          (~do-fetch-fn muses# env#))))))
 
+          ([sym bindings do-fetch-fn do-multi-match-fn do-missing-fn]
+           `(defrecord ~sym ~bindings
+              u/DataSource
+              (-identity [this#] (:id this#))
+              (-fetch [this# env#]
+                (unwrap first (~do-fetch-fn [this#] env#)))
+
+              u/BatchedSource
+              (-fetch-multi [muse# muses# env#]
+                (let [muses# (cons muse# muses#)]
+                  (unwrap (fn [responses#]
+                            (into {}
+                                  (for [id# (map u/-identity muses#)
+                                        :let [r# (or (~do-multi-match-fn id# responses#)
+                                                     (~do-missing-fn id#))]]
+                                    [id# r#])))
+                          (~do-fetch-fn muses# env#))))))))
 
 (def ^:dynamic *instance*)
 
