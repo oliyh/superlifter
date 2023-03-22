@@ -170,6 +170,12 @@ We can rewrite this using superlifter (see the [example code](https://github.com
   (with-superlifter context
     (s/enqueue! :pet-details (->FetchPet id))))
 ```
+Note that when defining a Superfetcher as above, the number of outputs is 
+expected to match the number of inputs, and to be in the same order. In 
+cases where there may be results missing, or results might arrive in a 
+different order, there is a second arity of `def-superfetcher` that takes 
+both a `match-fn` and a `missing-fn` to define how results should be joined 
+with inputs.
 
 It's usual to start a Superlifter before each query and stop it afterwards.
 There is an `inject-superlifter` interceptor which will help you do this:
