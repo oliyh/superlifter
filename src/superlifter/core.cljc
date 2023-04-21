@@ -192,12 +192,13 @@
                                          (update :urania-opts #(merge (:urania-opts context) %)))))
 
 (defn- start-buckets! [{:keys [buckets] :as context}]
-  (swap! buckets
-         #(reduce-kv (fn [buckets id _opts]
-                       (update buckets id (partial start-bucket! context id)))
-                     %
-                     %))
-  context)
+  (let [context (update context :buckets atom)
+        started-buckets (reduce-kv (fn [buckets id opts]
+                                     (assoc buckets id (start-bucket! context id opts)))
+                                   {}
+                                   buckets)]
+    (reset! (:buckets context) started-buckets)
+    context))
 
 (defn- stop-bucket! [context bucket-id]
   (doseq [{:keys [stop-fn]} (vals (:triggers (get @(:buckets context) bucket-id)))
@@ -205,14 +206,14 @@
     (stop-fn)))
 
 (defn add-bucket! [context bucket-id opts]
-  (log :debug "Adding bucket" bucket-id opts)
-  (swap-vals! (:buckets context)
-              (fn [buckets]
-                (if (contains? buckets bucket-id)
-                  (do (log :warn "Bucket" bucket-id "already exists")
-                      buckets)
-                  (assoc buckets bucket-id (start-bucket! context bucket-id opts)))))
-  context)
+  (locking (:sync-lock context)
+    ;; it is possible that many threads will attempt to add the same bucket at the same time
+    ;; it's important we only start the bucket once, so we obtain a lock and start the bucket before mutating the buckets atom
+    (if-not (contains? @(:buckets context) bucket-id)
+      (do (log :debug "Adding bucket" bucket-id opts)
+          (swap! (:buckets context) assoc bucket-id (start-bucket! context bucket-id opts)))
+      (log :warn "Bucket" bucket-id "already exists"))
+    context))
 
 (defn default-opts []
   {:urania-opts {:cache (atom {})}})
@@ -260,8 +261,8 @@
   "
   [opts]
   (-> (merge (default-opts) opts)
+      #?(:clj (assoc :sync-lock (Object.)))
       (update-in [:buckets default-bucket-id] #(or % {}))
-      (update :buckets atom)
       (start-buckets!)))
 
 (defn stop!
