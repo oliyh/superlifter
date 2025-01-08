@@ -89,8 +89,8 @@
 
 (defn- fetch-all-handling-errors! [context bucket-id]
   (try (prom/catch (fetch-bucket! context bucket-id)
-                   (fn [error]
-                     (log :warn "Fetch failed" error)))
+           (fn [error]
+              (log :warn "Fetch failed" error)))
        (catch Throwable t
          (log :warn "Fetch failed" t))))
 
