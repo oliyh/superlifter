@@ -121,7 +121,7 @@
 
 (defmethod start-trigger! :interval [_ context bucket-id opts]
   (let [watcher #?(:clj (future (loop []
-                                  (Thread/sleep (:interval opts))
+                                  (Thread/sleep ^long (:interval opts))
                                   (fetch-all-handling-errors! context bucket-id)
                                   (recur)))
                    :cljs (js/setInterval #(fetch-all-handling-errors! context bucket-id)
@@ -151,7 +151,7 @@
         watcher #?(:clj (future (loop []
                                   (let [lu @last-updated]
                                     (cond
-                                      (nil? lu) (do (Thread/sleep interval)
+                                      (nil? lu) (do (Thread/sleep ^long interval)
                                                     (recur))
 
                                       (= :exit lu) nil
@@ -162,7 +162,7 @@
                                           (recur))
 
                                       :else
-                                      (do (Thread/sleep (- interval (- (System/currentTimeMillis) lu)))
+                                      (do (Thread/sleep ^long (- interval (- (System/currentTimeMillis) lu)))
                                           (recur))))))
                    :cljs (js/setTimeout check-debounced 0 context bucket-id interval last-updated))]
     (assoc opts
