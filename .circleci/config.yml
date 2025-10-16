@@ -7,7 +7,7 @@ jobs:
   build:
     docker:
       # specify the version you desire here
-      - image: cimg/clojure:1.11.1-browsers
+      - image: cimg/clojure:1.11.4-openjdk-21.0-browsers
 
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
