@@ -4,16 +4,18 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[funcool/urania "0.2.0"]
-                 [funcool/promesa "10.0.594"]
-                 [org.clojure/tools.logging "1.2.4"]]
-  :profiles {:provided {:dependencies [[org.clojure/clojure "1.11.1"]
-                                       [org.clojure/clojurescript "1.11.60"]]}
-             :test     {:dependencies [[com.walmartlabs/lacinia-pedestal "1.1"]]}
+                 [funcool/promesa "11.0.678"]
+                 [org.clojure/tools.logging "1.3.0"]]
+  :profiles {:provided {:dependencies [[org.clojure/clojure "1.12.3"]
+                                       [org.clojure/clojurescript "1.12.42"]]}
+             :test     {:dependencies [[com.walmartlabs/lacinia-pedestal "1.3.1"]]}
              :dev      {:dependencies [[binaryage/devtools "1.0.7"]
-                                       [com.bhauman/figwheel-main "0.2.18"]
-                                       [org.clojure/tools.reader "1.3.6"]
-                                       [cider/piggieback "0.5.2"]
-                                       [org.clojure/tools.nrepl "0.2.13"]]
+                                       [com.bhauman/figwheel-main "0.2.20"]
+                                       [org.clojure/tools.reader "1.3.7"]
+                                       [cider/piggieback "0.6.0"]
+                                       [nrepl/nrepl "1.5.0"]]
+                        :resource-paths ["target"]
+                        :clean-targets ^{:protect false} ["target"]
                         :repl-options {:nrepl-middleware [cider.piggieback/wrap-cljs-repl]}}}
   :aliases {"fig"       ["trampoline" "run" "-m" "figwheel.main"]
             "fig:build" ["trampoline" "run" "-m" "figwheel.main" "-b" "dev" "-r"]
