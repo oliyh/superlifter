@@ -1,17 +1,15 @@
 (ns superlifter.lacinia
   (:require [superlifter.core :as s]
             [superlifter.api :as api]
-            [io.pedestal.interceptor :refer [interceptor]]
             [com.walmartlabs.lacinia.resolve :as resolve]
             [promesa.core :as prom]))
 
 (defn inject-superlifter [superlifter-args]
-  (interceptor
-   {:name ::inject-superlifter
-    :enter (fn [ctx]
-             (assoc-in ctx [:request :superlifter] (s/start! superlifter-args)))
-    :leave (fn [ctx]
-             (update-in ctx [:request :superlifter] s/stop!))}))
+  {:name ::inject-superlifter
+   :enter (fn [ctx]
+            (assoc-in ctx [:request :superlifter] (s/start! superlifter-args)))
+   :leave (fn [ctx]
+            (update-in ctx [:request :superlifter] s/stop!))})
 
 (defn ->lacinia-promise [sl-result]
   (let [l-prom (resolve/resolve-promise)]
