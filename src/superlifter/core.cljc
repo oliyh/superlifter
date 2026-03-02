@@ -129,40 +129,45 @@
     (assoc opts :stop-fn #?(:clj #(future-cancel watcher)
                             :cljs #(js/clearInterval watcher)))))
 
+(defn- debounce-active? [lu]
+  (and (some? lu) (not= :exit lu)))
+
 #?(:cljs
    (defn- check-debounced [context bucket-id interval last-updated]
-     (let [lu @last-updated]
+     (let [lu @last-updated
+           remaining (when (debounce-active? lu) (- interval (- (js/Date.) lu)))]
        (cond
          (nil? lu) (js/setTimeout check-debounced interval context bucket-id interval last-updated)
 
          (= :exit lu) nil
 
-         (<= interval (- (js/Date.) lu))
+         (<= remaining 0)
          (do (fetch-all-handling-errors! context bucket-id)
              (compare-and-set! last-updated lu nil)
              (js/setTimeout check-debounced 0 context bucket-id interval last-updated))
 
          :else
-         (js/setTimeout check-debounced (- interval (- (js/Date.) lu)) context bucket-id interval last-updated)))))
+         (js/setTimeout check-debounced remaining context bucket-id interval last-updated)))))
 
 (defmethod start-trigger! :debounced [_ context bucket-id opts]
   (let [interval (:interval opts)
         last-updated (atom nil)
         watcher #?(:clj (future (loop []
-                                  (let [lu @last-updated]
+                                  (let [lu @last-updated
+                                        remaining (when (debounce-active? lu) (- interval (- (System/currentTimeMillis) lu)))]
                                     (cond
                                       (nil? lu) (do (Thread/sleep ^long interval)
                                                     (recur))
 
                                       (= :exit lu) nil
 
-                                      (<= interval (- (System/currentTimeMillis) lu))
+                                      (<= remaining 0)
                                       (do (fetch-all-handling-errors! context bucket-id)
                                           (compare-and-set! last-updated lu nil)
                                           (recur))
 
                                       :else
-                                      (do (Thread/sleep ^long (- interval (- (System/currentTimeMillis) lu)))
+                                      (do (Thread/sleep ^long remaining)
                                           (recur))))))
                    :cljs (js/setTimeout check-debounced 0 context bucket-id interval last-updated))]
     (assoc opts
