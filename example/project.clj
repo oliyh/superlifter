@@ -12,7 +12,7 @@
                  [org.slf4j/log4j-over-slf4j "2.0.17"]
                  [com.walmartlabs/lacinia-pedestal "1.3.1" :exclusions [com.fasterxml.jackson.core/jackson-core]]
                  [cheshire/cheshire "6.1.0"]
-                 [superlifter "0.1.6-SNAPSHOT"]
+                 [superlifter "0.1.7-SNAPSHOT"]
                  [io.aviso/logging "1.0"]]
   :min-lein-version "2.0.0"
   :source-paths ["src" "../src"]
